@@ -32,6 +32,16 @@ try {
   $remote = (Invoke-WebRequest -Uri "$Base/version.json?t=$stamp" -UseBasicParsing -TimeoutSec 30).Content | ConvertFrom-Json
 } catch { Write-Log "Pas de connexion a GitHub ($($_.Exception.Message))"; exit 0 }
 
+# This script updates itself too (version.json -> "script": sha256 of the newest maj-autofill.ps1); used from the next run.
+try {
+  $self = $MyInvocation.MyCommand.Path
+  if ($remote.script -and $self -and ((Get-FileHash $self -Algorithm SHA256).Hash -ne $remote.script.ToUpper())) {
+    $new = Join-Path $env:TEMP 'alwasit-maj-script.ps1'
+    Invoke-WebRequest -Uri "$Base/installer/maj-autofill.ps1?t=$stamp" -OutFile $new -UseBasicParsing -TimeoutSec 60
+    if ((Get-FileHash $new -Algorithm SHA256).Hash -eq $remote.script.ToUpper()) { Copy-Item $new $self -Force; Write-Log 'script de mise a jour mis a jour' }
+  }
+} catch { Write-Log "script: $($_.Exception.Message)" }
+
 foreach ($app in 'tls', 'bls') {
   try {
     $folder = $cfg.$app
