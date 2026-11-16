@@ -24,7 +24,14 @@ Write-Host ''
 # 1. Folders of the unpacked extensions, as Chrome knows them (all Chrome profiles).
 #    Read as text: Chrome's preference files can have keys PowerShell 5 refuses as JSON.
 $found = @{}
-$prefs = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data') -Recurse -Depth 1 -Include 'Secure Preferences', 'Preferences' -ErrorAction SilentlyContinue
+#    Only <profile>\Preferences files: -Recurse -Include walks the whole User Data tree on PowerShell 5.1 (hangs with 100+ profiles).
+$ud = Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data'
+$prefs = foreach ($d in (Get-ChildItem $ud -Directory -ErrorAction SilentlyContinue)) {
+  foreach ($f in 'Secure Preferences', 'Preferences') {
+    $pf = Join-Path $d.FullName $f
+    if (Test-Path $pf) { Get-Item $pf }
+  }
+}
 foreach ($p in $prefs) {
   try {
     $txt = [IO.File]::ReadAllText($p.FullName)
