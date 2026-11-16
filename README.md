@@ -10,4 +10,6 @@ Mises à jour automatiques des extensions **Autofill TLS** et **Autofill BLS** (
 - Journal sur le PC : `%LOCALAPPDATA%\AlWasitMaj\maj.log`.
 - Enlever : PowerShell → `Unregister-ScheduledTask -TaskName "AlWasit MAJ" -Confirm:$false`.
 
+- `telephone/` : la page « À faire » du téléphone. Netlify la publie toute seule à chaque changement (projet lié à ce dépôt, dossier `telephone`).
+
 Aucune donnée de client ici : seulement le code des extensions.

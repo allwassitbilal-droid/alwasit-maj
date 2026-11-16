@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>À faire · Al Wasit</title>
+  <meta name="theme-color" content="#0F1E33">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="À faire">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body data-app="tls">
+  <!-- Login: the same email + password as ☁ in the extensions -->
+  <main id="login-view" hidden>
+    <div class="login-card">
+      <div class="logo">AF</div>
+      <h1>À faire</h1>
+      <p>Les tâches de l'équipe Autofill TLS et Autofill BLS.<br>Connectez-vous avec le compte ☁ de l'extension.</p>
+      <form id="login">
+        <label>Email<input name="email" type="email" autocomplete="username" required></label>
+        <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Se connecter</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </div>
+  </main>
+
+  <main id="app-view" hidden>
+    <header class="top">
+      <div class="top-row">
+        <div>
+          <h1 id="title">À faire aujourd'hui</h1>
+          <p id="today"></p>
+        </div>
+        <button id="menu" class="icon" type="button" aria-label="Compte" title="Compte">⋯</button>
+      </div>
+      <div class="switch" role="tablist" aria-label="Extension">
+        <button role="tab" data-app="tls" type="button"><span class="flag">TLS</span> France <b class="n"></b></button>
+        <button role="tab" data-app="bls" type="button"><span class="flag">BLS</span> Espagne <b class="n"></b></button>
+      </div>
+    </header>
+    <div id="account" class="account" hidden>
+      <span id="who"></span>
+      <button id="logout" type="button">Se déconnecter</button>
+    </div>
+    <div id="status" class="status" hidden></div>
+    <section id="list" aria-live="polite"></section>
+    <button id="add" class="fab" type="button">＋ Nouvelle tâche</button>
+    <nav class="nav" aria-label="Vues">
+      <button type="button" data-view="taches"><span>📋</span>À faire</button>
+      <button type="button" data-view="clients"><span>🗂</span>Clients</button>
+      <button type="button" data-view="bilan"><span>📊</span>Bilan</button>
+    </nav>
+  </main>
+
+  <!-- Client file: new or edit (clients.js) -->
+  <div id="client" class="page" hidden></div>
+
+  <!-- New task (bottom sheet) -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-back" data-close></div>
+    <form id="new" class="sheet-card" aria-labelledby="new-title">
+      <div class="sheet-grip"></div>
+      <h2 id="new-title">Nouvelle tâche <span class="for"></span></h2>
+      <textarea name="text" rows="2" maxlength="140" placeholder="Ex : appeler Omar pour les photos" required></textarea>
+      <div class="days" role="radiogroup" aria-label="Pour quel jour">
+        <button type="button" data-day="0" class="on">Aujourd'hui</button>
+        <button type="button" data-day="1">Demain</button>
+        <input name="day" type="date" aria-label="Autre jour">
+      </div>
+      <select name="client" aria-label="Client (optionnel)"><option value="">Client (optionnel)</option></select>
+      <div class="sheet-actions">
+        <button type="button" data-close>Annuler</button>
+        <button class="primary" type="submit">Ajouter</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toast" role="status"></div>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+  <script src="clients.js"></script>
+  <script src="bilan.js"></script>
+</body>
+</html>
