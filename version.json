@@ -4,11 +4,11 @@
   "tls": {
     "version": "1.4.4",
     "zip": "tls/autofill-tls-1.4.4.zip",
-    "sha256": ""
+    "sha256": "A91EF1E08840164BF18B24C3C0727609E1D8F0703C343A3F9812E157319D7F90"
   },
   "bls": {
     "version": "2.8.3",
     "zip": "bls/agence-autofill-2.8.3.zip",
-    "sha256": ""
+    "sha256": "A36E350CA90CB70869E871A550D3F016DF8EEEB6D6986BEB500AB011F958A3DF"
   }
 }
