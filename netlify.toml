@@ -1,0 +1,6 @@
+# Netlify (site golden-zabaione-79fe0d): publish only the phone page, as it is (no build).
+# With the site linked to this repo, every push to main republishes telephone/ by itself.
+[build]
+  base = "telephone"
+  publish = "."
+  command = ""
