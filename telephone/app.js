@@ -5,6 +5,14 @@
 // The «Clients» tab (clients.js) adds and edits client files the same way.
 (() => {
   const TEAM = '__equipe__';
+  // 🔄 Version of this phone page and what is new in it. Change both with each update of telephone/:
+  // the first phone that opens a new version tells the team on Telegram, once (team row → data.majTel).
+  const VERSION = '2026-11-17.2';
+  const NOUVEAUTES = [
+    '📝 Traductions: خانة جديدة لوراق الترجمة (النوع، مول الوثيقة، اللغة، الصفحات، الثمن والخلاص، الحالة، نهار التسليم).',
+    '⭐ Prêts: الكليان الواجدين كيبانو فالتليفون (بوطونة «⭐ Prêts» والكليان الواجدين الفوق).',
+    '📋 À faire: المهام كيبقاو حتى تحيدهم بـ ✕، «Prochains jours» و«Fait» ديما باينين، وكل مهمة فيها التاريخ فاش تزادت.',
+  ];
   const APPS = {
     tls: { table: 'clients_tls', bucket: 'fichiers-tls', fields: 'dossier,passeport,mobile,famille,etape,rdvDate,rdvHeure,tlsCree,manque,archive,pret,prix,paye,ajout' },
     bls: { table: 'clients', bucket: 'fichiers', fields: 'dossier,passeport,mobile,famille,reserve,lettre,pret,prix,paye,ajout' },
@@ -135,6 +143,7 @@
     const { data, error } = await sb.from(APPS[a].table).select('data').eq('id', TEAM).maybeSingle();
     if (error) throw error;
     state[a].tasks = data?.data?.tasks || [];
+    state[a].team = data?.data || {};
   }
   async function load(a, withClients = true) {
     try {
@@ -353,6 +362,25 @@
     }
     channel.subscribe();
   }
+  // 🔄 Tell the team on Telegram that the phone page has a new version (once, by the first phone that opens it).
+  async function announce() {
+    const a = ['tls', 'bls'].find(x => state[x].team?.telegram?.botToken && state[x].team?.telegram?.chatId);
+    if (!a || (state[a].team.majTel || '') >= VERSION) return;
+    await new Promise(r => setTimeout(r, 3_000 + Math.random() * 20_000)); // several phones: the first one's mark wins
+    const table = APPS[a].table;
+    const { data: row, error } = await sb.from(table).select('data').eq('id', TEAM).maybeSingle();
+    const cur = row?.data;
+    if (error || !cur || (cur.majTel || '') >= VERSION) return;
+    const mark = majTel => sb.from(table).upsert({ id: TEAM, data: { ...cur, majTel }, updated_at: new Date().toISOString(), updated_by: me });
+    if ((await mark(VERSION)).error) return;
+    const tg = cur.telegram;
+    const text = `🔄 ميزاجور جديدة — التليفون (À faire · Clients)\n\n${NOUVEAUTES.map(l => '• ' + l).join('\n')}\n\nسدو الأپليكاسيون وعاودو حلوها باش تبان.`;
+    const ok = await fetch(`https://api.telegram.org/bot${encodeURIComponent(tg.botToken)}/sendMessage`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: tg.chatId, text }),
+    }).then(r => r.json()).then(j => j.ok).catch(() => false);
+    if (!ok) await mark(cur.majTel); // try again next time
+  }
+
   async function start(session) {
     me = session.user.email || '';
     $('#who').textContent = me;
@@ -361,7 +389,8 @@
     render();
     await load(app);
     live();
-    load(app === 'tls' ? 'bls' : 'tls'); // the other tab's count
+    await load(app === 'tls' ? 'bls' : 'tls'); // the other tab's count
+    announce().catch(() => {});
   }
   // Back on the app: refresh (clients may have changed on the PCs, the day may have changed).
   document.addEventListener('visibilitychange', () => {

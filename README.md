@@ -17,3 +17,6 @@ Aucune donnée de client ici : seulement le code des extensions.
 
 - `supabase-traductions.sql` : à lancer **une fois** dans Supabase (SQL Editor) pour le tableau « traductions »
   (📝 Traductions dans les extensions et sur le téléphone).
+
+- 🔄 Annonce Telegram de chaque mise à jour (une seule fois, par le premier PC / téléphone) :
+  extensions → écrire les nouveautés de la version dans `nouveautes.json` ; téléphone → changer `VERSION` et `NOUVEAUTES` en haut de `telephone/app.js`.
