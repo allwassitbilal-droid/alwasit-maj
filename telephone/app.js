@@ -19,6 +19,9 @@
   const ymd = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const plus = n => ymd(new Date(Date.now() + n * DAY));
   const frShort = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '');
+  // When a written task was added: «cree», else read from its id ('t' + Date.now() in base 36 + 4 random letters).
+  const createdAt = t => t.cree || (() => { const n = parseInt(String(t.id).slice(1, -4), 36); return n > 1.5e12 && n < 4e12 ? n : 0; })();
+  const addedText = ms => { if (!ms) return ''; const d = new Date(ms); return `ajoutée le ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} à ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   const dayDiff = iso => Math.round((new Date(iso + 'T12:00:00') - new Date(new Date().toDateString() + ' 12:00')) / DAY);
   const daysLeft = iso => Math.ceil((new Date(iso + 'T12:00:00') - Date.now()) / DAY);
   const who = email => (email || '').split('@')[0];
@@ -97,14 +100,15 @@
       if (t.deleted || t.id.startsWith('auto:')) continue;
       const day = t.day || today;
       rows.push({ id: t.id, text: t.text, client: clients.find(c => c.id === t.clientId), day, done: !!t.done, doneBy: t.doneBy, by: t.by,
-        icon: '✎', rank: day < today ? 0 : day === today ? 3 : 9, late: !t.done && day < today });
+        icon: '✎', rank: day < today ? 0 : day === today ? 3 : 9, late: !t.done && day < today, cree: createdAt(t) });
     }
     rows.sort((x, y) => x.rank - y.rank || (x.time || '').localeCompare(y.time || '') || x.day.localeCompare(y.day));
     return {
       late: rows.filter(r => r.late),
       now: rows.filter(r => !r.done && !r.late && r.day <= today),
       later: rows.filter(r => !r.done && r.day > today).sort((x, y) => x.day.localeCompare(y.day)),
-      done: rows.filter(r => r.done && (r.auto || r.day <= today)),
+      // Written tasks that are done stay here, one under the other by the date they were added, until someone deletes them (✕).
+      done: rows.filter(r => r.done && !r.auto).sort((x, y) => x.cree - y.cree),
     };
   }
 
@@ -143,11 +147,12 @@
     render();
   }
 
-  // Old ticks and deletions go away after a while (same as the extensions).
+  // Deletion marks and ticks of automatic tasks go away after a while (same as the extensions).
+  // A written task is never removed by itself: it stays, done or late, until someone deletes it (✕).
   const prune = list => list.filter(t => {
     const age = Date.now() - (t.at || 0);
     if (t.deleted || t.id.startsWith('auto:')) return age < 30 * DAY;
-    return !t.done || age < 14 * DAY;
+    return true;
   });
   // Read the team row, change the tasks, write it back: the team's other settings (Telegram…) stay as they are.
   async function change(a, fn) {
@@ -200,6 +205,7 @@
       !r.late && !r.done && r.day > ymd() ? el('span', { textContent: r.day === plus(1) ? 'demain' : frShort(r.day) }) : null,
       r.done && r.doneBy ? el('span', { textContent: `fait par ${who(r.doneBy)}` }) : null,
       !r.done && r.by ? el('span', { textContent: `de ${who(r.by)}` }) : null,
+      r.cree ? el('span', { className: 'added', textContent: addedText(r.cree) }) : null,
     ].filter(Boolean);
     return el('li', { className: 'task' + (r.done ? ' done' : '') + (r.late ? ' is-late' : '') },
       tick,
@@ -254,12 +260,9 @@
     if (late.length) kids.push(group('En retard', late, 'late'));
     if (now.length) kids.push(group("Aujourd'hui", now));
     if (!late.length && !now.length) kids.push(el('div', { className: 'empty' }, el('b', { textContent: 'Rien à faire aujourd\'hui.' }), el('span', { textContent: 'Ajoutez une tâche avec ＋, elle arrive tout de suite dans l\'extension.' })));
-    const foot = [];
-    if (later.length) foot.push(el('button', { type: 'button', className: open.later ? 'on' : '', textContent: `📅 Plus tard · ${later.length}`, onclick: () => { open.later = !open.later; render(); } }));
-    if (done.length) foot.push(el('button', { type: 'button', className: open.done ? 'on' : '', textContent: `✓ Fait · ${done.length}`, onclick: () => { open.done = !open.done; render(); } }));
-    if (foot.length) kids.push(el('div', { className: 'more' }, ...foot));
-    if (open.later && later.length) kids.push(group('Plus tard', later, 'sub'));
-    if (open.done && done.length) kids.push(group('Fait', done, 'sub'));
+    // Everything stays on screen: the next days, then what is done (until deleted with ✕).
+    if (later.length) kids.push(group('📅 Prochains jours', later, 'sub'));
+    if (done.length) kids.push(group('✓ Fait', done, 'sub'));
     list.replaceChildren(...kids);
   }
 
@@ -297,7 +300,7 @@
     const text = form.text.value.trim();
     if (!text) return;
     closeSheet();
-    const ok = await put(app, { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, day: pickedDay, clientId: form.client.value || undefined, by: me || undefined });
+    const ok = await put(app, { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), cree: Date.now(), text, day: pickedDay, clientId: form.client.value || undefined, by: me || undefined });
     if (ok) toast('✓ Tâche envoyée à l\'équipe');
   };
   form.text.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } };

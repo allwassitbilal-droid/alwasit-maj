@@ -226,3 +226,6 @@ ul.due button b { color: #F5C451; white-space: nowrap; }
 .cbadge.pret { background: #FFE9A8; color: #5C4300; }
 .cchip.pret { border-color: #F1BF00; color: #F1BF00; }
 .cchip.pret.on { background: #F1BF00; color: #2B2100; }
+
+/* When a written task was added */
+.meta .added { color: #6F829C; font-size: .92em; }
