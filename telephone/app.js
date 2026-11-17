@@ -41,7 +41,7 @@
   let me = '', app = 'tls', view = 'taches';
   try {
     app = localStorage.getItem('app') === 'bls' ? 'bls' : 'tls';
-    view = ['clients', 'bilan'].includes(localStorage.getItem('view')) ? localStorage.getItem('view') : 'taches';
+    view = ['clients', 'bilan', 'trad'].includes(localStorage.getItem('view')) ? localStorage.getItem('view') : 'taches';
   } catch { /* private mode */ }
   const state = { tls: { tasks: [], clients: [], loaded: false }, bls: { tasks: [], clients: [], loaded: false } };
   const open = { later: false, done: false };
@@ -248,10 +248,12 @@
       badge.classList.toggle('bad', late.length > 0);
     }
     for (const b of document.querySelectorAll('.nav button')) b.classList.toggle('on', b.dataset.view === view);
-    $('#title').textContent = view === 'clients' ? 'Clients' : view === 'bilan' ? 'Bilan du mois' : "À faire aujourd'hui";
-    $('#add').textContent = view === 'clients' ? '＋ Nouveau client' : '＋ Nouvelle tâche';
+    $('#title').textContent = view === 'clients' ? 'Clients' : view === 'bilan' ? 'Bilan du mois' : view === 'trad' ? 'Traductions' : "À faire aujourd'hui";
+    $('#add').textContent = view === 'clients' ? '＋ Nouveau client' : view === 'trad' ? '＋ Nouveau document' : '＋ Nouvelle tâche';
+    document.body.dataset.view = view; // «Traductions» is for the whole agency: no TLS / BLS switch there
     $('#add').hidden = view === 'bilan';
     const list = $('#list');
+    if (view === 'trad') return AFTrad.render(list);
     if (!state[app].loaded) { list.replaceChildren(el('p', { className: 'empty', textContent: 'Chargement…' })); return; }
     if (view === 'clients') return AFClients.render(list);
     if (view === 'bilan') return AFBilan.render(list);
@@ -306,7 +308,7 @@
   form.text.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } };
   for (const x of document.querySelectorAll('[data-close]')) x.onclick = closeSheet;
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
-  $('#add').onclick = () => (view === 'clients' ? AFClients.open(null) : openSheet());
+  $('#add').onclick = () => (view === 'clients' ? AFClients.open(null) : view === 'trad' ? AFTrad.open(null) : openSheet());
   for (const b of document.querySelectorAll('.nav button')) {
     b.onclick = () => {
       view = b.dataset.view;
@@ -331,7 +333,7 @@
   // Shared with clients.js
   globalThis.AF = {
     sb, APPS, TEAM, state, el, $, toast, ymd, frShort, dayDiff, daysLeft, tlsExpiry, name, label, pick, render,
-    app: () => app, me: () => me,
+    app: () => app, me: () => me, view: () => view,
   };
 
   // ---- Start ----

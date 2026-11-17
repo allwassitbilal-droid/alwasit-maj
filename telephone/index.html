@@ -56,12 +56,15 @@
     <nav class="nav" aria-label="Vues">
       <button type="button" data-view="taches"><span>📋</span>À faire</button>
       <button type="button" data-view="clients"><span>🗂</span>Clients</button>
+      <button type="button" data-view="trad"><span>📝</span>Traductions</button>
       <button type="button" data-view="bilan"><span>📊</span>Bilan</button>
     </nav>
   </main>
 
   <!-- Client file: new or edit (clients.js) -->
   <div id="client" class="page" hidden></div>
+  <!-- Translation document: new or edit (traductions.js) -->
+  <div id="trad-page" class="page" hidden></div>
 
   <!-- New task (bottom sheet) -->
   <div id="sheet" class="sheet" hidden>
@@ -89,5 +92,6 @@
   <script src="app.js"></script>
   <script src="clients.js"></script>
   <script src="bilan.js"></script>
+  <script src="traductions.js"></script>
 </body>
 </html>

@@ -14,3 +14,6 @@ Mises à jour automatiques des extensions **Autofill TLS** et **Autofill BLS** (
   sur `main` est publié tout seul (`netlify.toml` : dossier `telephone`, pas de build).
 
 Aucune donnée de client ici : seulement le code des extensions.
+
+- `supabase-traductions.sql` : à lancer **une fois** dans Supabase (SQL Editor) pour le tableau « traductions »
+  (📝 Traductions dans les extensions et sur le téléphone).

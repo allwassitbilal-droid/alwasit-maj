@@ -1,6 +1,6 @@
 // Lets the phone install «À faire» as an app. Network first (tasks must be fresh); the saved copy only opens the page offline.
-const CACHE = 'a-faire-v5';
-const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'config.js', 'supabase.js', 'clients.js', 'bilan.js', 'manifest.webmanifest', 'icon-192.png'];
+const CACHE = 'a-faire-v6';
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'config.js', 'supabase.js', 'clients.js', 'bilan.js', 'traductions.js', 'manifest.webmanifest', 'icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));
