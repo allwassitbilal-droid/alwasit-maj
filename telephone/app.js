@@ -6,8 +6,8 @@
 (() => {
   const TEAM = '__equipe__';
   const APPS = {
-    tls: { table: 'clients_tls', bucket: 'fichiers-tls', fields: 'dossier,passeport,mobile,famille,etape,rdvDate,rdvHeure,tlsCree,manque,archive,prix,paye,ajout' },
-    bls: { table: 'clients', bucket: 'fichiers', fields: 'dossier,passeport,mobile,famille,reserve,lettre,prix,paye,ajout' },
+    tls: { table: 'clients_tls', bucket: 'fichiers-tls', fields: 'dossier,passeport,mobile,famille,etape,rdvDate,rdvHeure,tlsCree,manque,archive,pret,prix,paye,ajout' },
+    bls: { table: 'clients', bucket: 'fichiers', fields: 'dossier,passeport,mobile,famille,reserve,lettre,pret,prix,paye,ajout' },
   };
   const DAY = 864e5;
   const $ = s => document.querySelector(s);

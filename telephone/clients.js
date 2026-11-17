@@ -9,6 +9,7 @@ globalThis.AFClients = (() => {
   const SLOTS = [['passeport', '🛂 Passeport'], ['photo', '🖼 Photo'], ['formulaire', '📄 Formulaire']];
   const ui = { q: '', folder: { tls: '', bls: '' } };
   const ARCHIVE = '\u0000archive';
+  const PRET = '\u0000pret'; // «⭐ Prêts»: the clients marked ready (wajdin) in the extension
   const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const frDate = iso => (iso ? iso.split('-').reverse().join('/') : '');
   const hue = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
@@ -78,12 +79,14 @@ globalThis.AFClients = (() => {
     const q = norm(ui.q.trim()), f = ui.folder[a];
     let list = AF.state[a].clients;
     if (f === ARCHIVE) list = list.filter(c => c.archive);
+    else if (f === PRET) list = list.filter(c => c.pret && !c.archive);
     else {
       list = list.filter(c => !c.archive);
       if (f) list = list.filter(c => c.dossier === f);
     }
     if (q) list = list.filter(c => String(numOf(c)) === q || norm(`${c.prenom} ${c.nom} ${c.nom} ${c.prenom} ${c.passeport} ${c.mobile}`).includes(q));
-    return [...list].sort((x, y) => (numOf(x) ?? 1e9) - (numOf(y) ?? 1e9) || AF.name(x).localeCompare(AF.name(y)));
+    // Ready (⭐) clients first, as in the extension; then by N°, then by name.
+    return [...list].sort((x, y) => !!y.pret - !!x.pret || (numOf(x) ?? 1e9) - (numOf(y) ?? 1e9) || AF.name(x).localeCompare(AF.name(y)));
   }
 
   function payBadge(c) {
@@ -100,7 +103,8 @@ globalThis.AFClients = (() => {
         el('span', { className: 'cbody' },
           el('span', { className: 'cname', textContent: AF.name(c) }),
           el('span', { className: 'cmeta', textContent: [c.passeport, c.dossier && '📁 ' + c.dossier, c.famille && '👪'].filter(Boolean).join('  ') || ' ' }),
-          b || pay(c) ? el('span', { className: 'cbadges' },
+          b || pay(c) || c.pret ? el('span', { className: 'cbadges' },
+            c.pret && !c.archive ? el('span', { className: 'cbadge pret', textContent: '⭐ Prêt' }) : null,
             b ? el('span', { className: 'cbadge ' + b[1], textContent: b[0] }) : null,
             payBadge(c)) : null)));
   }
@@ -119,10 +123,12 @@ globalThis.AFClients = (() => {
   }
   function fill(list) {
     const a = AF.app();
-    const chips = [['', 'Tous'], ...folders(a).map(f => [f, f]), ...(a === 'tls' ? [[ARCHIVE, '📦 Archive']] : [])];
+    const nPret = AF.state[a].clients.filter(c => c.pret && !c.archive).length;
+    if (ui.folder[a] === PRET && !nPret) ui.folder[a] = '';
+    const chips = [['', 'Tous'], ...(nPret ? [[PRET, `⭐ Prêts · ${nPret}`]] : []), ...folders(a).map(f => [f, f]), ...(a === 'tls' ? [[ARCHIVE, '📦 Archive']] : [])];
     list.querySelector('.cfolders').replaceChildren(...chips.map(([v, t]) => el('button', {
-      type: 'button', className: 'cchip' + (ui.folder[a] === v ? ' on' : ''), textContent: t,
-      style: v && v !== ARCHIVE ? `--h:${hue(v)}` : '',
+      type: 'button', className: 'cchip' + (v === PRET ? ' pret' : '') + (ui.folder[a] === v ? ' on' : ''), textContent: t,
+      style: v && v !== ARCHIVE && v !== PRET ? `--h:${hue(v)}` : '',
       onclick: () => { ui.folder[a] = v; fill(list); },
     })));
     const rows = results(a);

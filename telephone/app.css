@@ -221,3 +221,8 @@ ul.due button { display: flex; width: 100%; justify-content: space-between; gap:
 ul.due button b { color: #F5C451; white-space: nowrap; }
 .bempty { margin: 0; color: var(--muted); font-size: 14px; }
 .bnote { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+
+/* ⭐ Prêts (wajdin): the ready clients, same as the extension's «Prêts» */
+.cbadge.pret { background: #FFE9A8; color: #5C4300; }
+.cchip.pret { border-color: #F1BF00; color: #F1BF00; }
+.cchip.pret.on { background: #F1BF00; color: #2B2100; }
