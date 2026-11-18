@@ -7,11 +7,12 @@
   const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
   const TABLE = 'caisse';
   // 🔄 Version of this app and what is new in it: the first phone that opens a new version tells the team on Telegram.
-  const VERSION = '2026-11-18.1';
+  const VERSION = '2026-11-18.2';
   const NOUVEAUTES = [
     '💰 أپليكاسيون جديدة «Caisse»: المداخيل والمصاريف ديال الوكالة، كتكتبوهم بيديكم (ماشي مربوطة بالدوسيات).',
     'كل عملية فيها: النوع، المبلغ بالدرهم، النهار، طريقة الخلاص، شكون كتبها (Bilal / Ahmed / Hmouri) وملاحظة.',
     'الفوق: شحال دخل، شحال خرج وشحال بقا فالشهر واليوم. وكاين ⬇ Excel ديال الشهر فـ ⋯.',
+    '📄 Rapport PDF ديال الشهر ولا العام: المداخيل والمصاريف، على حساب النوع، على حساب الشخص، الكليان اللي خلصو وشحال، طريقة الخلاص، نهار بنهار، وكاع العمليات.',
     'زيدوها للإيكران: حلو golden-zabaione-79fe0d.netlify.app/caisse/ ← ⋮ ← Ajouter à l\'écran d\'accueil.',
   ];
   const CATS = {
@@ -279,6 +280,83 @@
     a.remove();
   }
 
+  // ---- 📄 Report of the month (or the year) to save as PDF: totals, by category, by person, by client,
+  // by payment, by day, and every operation. Opens as a page, then the phone's «Imprimer → Enregistrer en PDF».
+  function report(period) {
+    const year = ui.month.slice(0, 4);
+    const inP = r => (r.date || '').startsWith(period === 'year' ? year : ui.month);
+    const list = rows.filter(inP).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.cree || 0) - (b.cree || 0));
+    if (!list.length) return toast(period === 'year' ? 'Aucune opération cette année' : 'Aucune opération ce mois-ci', true);
+    const [y, m] = ui.month.split('-').map(Number);
+    const title = period === 'year' ? `Année ${year}` : `${MONTHS[m - 1]} ${y}`;
+    const tin = total(list, 'in'), tout = total(list, 'out');
+    const fr = iso => iso.split('-').reverse().join('/');
+    const plain = s => String(s || '').replace(/^\S+\s/, ''); // without the emoji
+    const pct = (n, of) => (of ? Math.round((n / of) * 100) + ' %' : '');
+    const table = (head, body, foot) => el('table', {},
+      el('thead', {}, el('tr', {}, ...head.map(h => el('th', { textContent: h })))),
+      el('tbody', {}, ...body.map(r => el('tr', {}, ...r.map((c, i) => el('td', { textContent: c, className: i && /DH|%|^\d+$/.test(String(c)) ? 'n' : '' }))))),
+      foot ? el('tfoot', {}, el('tr', {}, ...foot.map((c, i) => el('td', { textContent: c, className: i ? 'n' : '' })))) : null);
+    const group = (items, key) => {
+      const g = new Map();
+      for (const r of items) { const k = key(r) || '—'; const v = g.get(k) || { n: 0, sum: 0 }; v.n++; v.sum += +r.montant || 0; g.set(k, v); }
+      return [...g.entries()].sort((a, b) => b[1].sum - a[1].sum);
+    };
+    const byCat = sens => {
+      const items = list.filter(r => r.sens === sens), t = total(items, sens);
+      return items.length ? table(['Catégorie', 'Nb', 'Montant', '%'], group(items, r => plain(catLabel(r.sens, r.cat))).map(([k, v]) => [k, String(v.n), money(v.sum), pct(v.sum, t)]),
+        ['Total', String(items.length), money(t), '100 %']) : el('p', { className: 'none', textContent: 'Aucune.' });
+    };
+    const persons = [...new Set(list.map(r => r.par || '—'))];
+    const byPerson = table(['Écrit par', 'Entrées', 'Sorties', 'Reste', 'Nb'], persons.map(p => {
+      const it = list.filter(r => (r.par || '—') === p);
+      return [p, money(total(it, 'in')), money(total(it, 'out')), money(total(it, 'in') - total(it, 'out')), String(it.length)];
+    }).sort((a, b) => b[4] - a[4]), ['Total', money(tin), money(tout), money(tin - tout), String(list.length)]);
+    const clients = group(list.filter(r => r.sens === 'in' && r.client), r => r.client);
+    const byClient = clients.length ? table(['Client', 'Nb', 'Payé'], clients.map(([k, v]) => [k, String(v.n), money(v.sum)]))
+      : el('p', { className: 'none', textContent: 'Aucun client écrit dans les entrées.' });
+    const modes = [...new Set(list.map(r => r.mode || '—'))];
+    const byMode = table(['Paiement', 'Entrées', 'Sorties'], modes.map(k => {
+      const it = list.filter(r => (r.mode || '—') === k);
+      return [plain(modeLabel(k)) || '—', money(total(it, 'in')), money(total(it, 'out'))];
+    }));
+    const units = period === 'year' ? [...new Set(list.map(r => r.date.slice(0, 7)))] : [...new Set(list.map(r => r.date))];
+    const byTime = table([period === 'year' ? 'Mois' : 'Jour', 'Entrées', 'Sorties', 'Reste'], units.map(u => {
+      const it = list.filter(r => r.date.startsWith(u));
+      const lab = period === 'year' ? MONTHS[+u.slice(5, 7) - 1] : fr(u);
+      return [lab, money(total(it, 'in')), money(total(it, 'out')), money(total(it, 'in') - total(it, 'out'))];
+    }), ['Total', money(tin), money(tout), money(tin - tout)]);
+    const all = table(['Date', 'Type', 'Catégorie', 'Montant', 'Par', 'Client / note'], list.map(r => [fr(r.date), r.sens === 'in' ? 'Entrée' : 'Sortie',
+      plain(catLabel(r.sens, r.cat)), (r.sens === 'in' ? '+' : '−') + money(r.montant), r.par || '', [r.client, r.note].filter(Boolean).join(' · ')]));
+    const sec = (t, ...k) => el('section', {}, el('h2', { textContent: t }), ...k);
+    const doc = el('article', { className: 'report' },
+      el('header', {}, el('div', {}, el('h1', { textContent: `Caisse · ${title}` }),
+        el('p', { textContent: `Al Wasit — rapport du ${new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })} · ${list.length} opérations` }))),
+      el('div', { className: 'kpis' },
+        el('div', { className: 'in' }, el('span', { textContent: 'Entrées' }), el('b', { textContent: money(tin) })),
+        el('div', { className: 'out' }, el('span', { textContent: 'Sorties' }), el('b', { textContent: money(tout) })),
+        el('div', { className: 'net' }, el('span', { textContent: 'Reste (bénéfice)' }), el('b', { textContent: money(tin - tout) }))),
+      sec('Entrées par catégorie', byCat('in')),
+      sec('Sorties par catégorie', byCat('out')),
+      sec('Par personne (qui a écrit)', byPerson),
+      sec('Clients qui ont payé', byClient),
+      sec('Par mode de paiement', byMode),
+      sec(period === 'year' ? 'Mois par mois' : 'Jour par jour', byTime),
+      sec('Toutes les opérations', all));
+    const page = $('#report');
+    page.replaceChildren(
+      el('div', { className: 'rbar' },
+        el('button', { type: 'button', className: 'back', textContent: '←', ariaLabel: 'Retour', onclick: () => { page.hidden = true; document.body.classList.remove('noscroll'); } }),
+        el('button', { type: 'button', className: 'primary', textContent: '📄 Enregistrer en PDF', onclick: () => window.print() })),
+      el('p', { className: 'rhint', textContent: 'Touchez «Enregistrer en PDF», puis choisissez «Enregistrer au format PDF» comme imprimante.' }),
+      doc);
+    document.title = `Caisse ${title}`;
+    page.hidden = false;
+    document.body.classList.add('noscroll');
+    $('#menu-box').hidden = true;
+  }
+  window.addEventListener('afterprint', () => { document.title = 'Caisse · Al Wasit'; });
+
   // ---- 🔄 Tell the team on Telegram about a new version (once, by the first phone that opens it) ----
   async function announce() {
     for (const table of ['clients_tls', 'clients']) {
@@ -315,6 +393,8 @@
   $('#add-out').onclick = () => open(null, 'out');
   $('#menu').onclick = () => { $('#menu-box').hidden = !$('#menu-box').hidden; };
   $('#export').onclick = () => { $('#menu-box').hidden = true; exportMonth(); };
+  $('#pdf').onclick = $('#pdf-month').onclick = () => report('month');
+  $('#pdf-year').onclick = () => report('year');
   $('#logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && cur) close(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && me) load(); });

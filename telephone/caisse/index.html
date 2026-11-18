@@ -41,6 +41,7 @@
             <button type="button" id="prev" aria-label="Mois précédent">‹</button>
             <b id="month"></b>
             <button type="button" id="next" aria-label="Mois suivant">›</button>
+            <button type="button" id="pdf" class="pdf">📄 PDF</button>
           </div>
         </div>
         <button type="button" class="icon" id="menu" aria-label="Menu">⋯</button>
@@ -49,6 +50,8 @@
     </header>
     <div class="menu" id="menu-box" hidden>
       <span id="who"></span>
+      <button type="button" id="pdf-month">📄 Rapport PDF du mois</button>
+      <button type="button" id="pdf-year">📄 Rapport PDF de l'année</button>
       <button type="button" id="export">⬇ Excel du mois</button>
       <button type="button" id="logout">Se déconnecter</button>
     </div>
@@ -61,6 +64,8 @@
 
   <!-- One operation: new or edit -->
   <div id="op" class="page" hidden></div>
+  <!-- Report to save as PDF (print) -->
+  <div id="report" class="page report-page" hidden></div>
   <div id="toast" class="toast" role="status"></div>
 
   <script src="../config.js"></script>
