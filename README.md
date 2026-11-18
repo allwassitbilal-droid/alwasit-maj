@@ -20,3 +20,7 @@ Aucune donnée de client ici : seulement le code des extensions.
 
 - 🔄 Annonce Telegram de chaque mise à jour (une seule fois, par le premier PC / téléphone) :
   extensions → écrire les nouveautés de la version dans `nouveautes.json` ; téléphone → changer `VERSION` et `NOUVEAUTES` en haut de `telephone/app.js`.
+
+- `telephone/caisse/` : l'app « Caisse » (entrées / sorties de l'agence, écrites à la main), publiée sur `…netlify.app/caisse/`.
+  `supabase-caisse.sql` : à lancer **une fois** dans Supabase (SQL Editor) pour le tableau « caisse ».
+  Annonce Telegram : changer `VERSION` et `NOUVEAUTES` en haut de `telephone/caisse/caisse.js`.

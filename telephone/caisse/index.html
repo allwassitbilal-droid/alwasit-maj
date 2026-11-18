@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Caisse · Al Wasit</title>
+  <meta name="theme-color" content="#0F1E33">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Caisse">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="caisse.css">
+</head>
+<body>
+  <!-- Login: the same email + password as ☁ in the extensions and «À faire» -->
+  <main id="login-view" hidden>
+    <div class="login-card">
+      <div class="logo">DH</div>
+      <h1>Caisse</h1>
+      <p>Les entrées et les sorties d'argent de l'agence.<br>Connectez-vous avec le compte ☁ de l'équipe.</p>
+      <form id="login">
+        <label>Email<input name="email" type="email" autocomplete="username" required></label>
+        <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Se connecter</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </div>
+  </main>
+
+  <main id="app-view" hidden>
+    <header class="top">
+      <div class="top-row">
+        <div>
+          <h1>Caisse</h1>
+          <div class="month">
+            <button type="button" id="prev" aria-label="Mois précédent">‹</button>
+            <b id="month"></b>
+            <button type="button" id="next" aria-label="Mois suivant">›</button>
+          </div>
+        </div>
+        <button type="button" class="icon" id="menu" aria-label="Menu">⋯</button>
+      </div>
+      <div class="sum" id="sum"></div>
+    </header>
+    <div class="menu" id="menu-box" hidden>
+      <span id="who"></span>
+      <button type="button" id="export">⬇ Excel du mois</button>
+      <button type="button" id="logout">Se déconnecter</button>
+    </div>
+    <section id="list" aria-live="polite"></section>
+    <div class="adds">
+      <button type="button" class="add in" id="add-in">＋ Entrée</button>
+      <button type="button" class="add out" id="add-out">－ Sortie</button>
+    </div>
+  </main>
+
+  <!-- One operation: new or edit -->
+  <div id="op" class="page" hidden></div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="../config.js"></script>
+  <script src="../supabase.js"></script>
+  <script src="caisse.js"></script>
+</body>
+</html>
