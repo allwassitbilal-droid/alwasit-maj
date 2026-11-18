@@ -1,5 +1,5 @@
 // Lets the phone install «À faire» as an app. Network first (tasks must be fresh); the saved copy only opens the page offline.
-const CACHE = 'a-faire-v8';
+const CACHE = 'a-faire-v9';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'config.js', 'supabase.js', 'clients.js', 'bilan.js', 'pin.js', 'traductions.js', 'manifest.webmanifest', 'icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
@@ -9,7 +9,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin) return; // Supabase: always live
-  if (u.pathname.includes('/caisse/')) return; // «Caisse» is its own app with its own service worker
+  if (/\/(caisse|traductions)\//.test(u.pathname)) return; // «Caisse» and «Traductions» are apps of their own, with their own service worker
   e.respondWith(fetch(e.request).then(r => {
     const copy = r.clone();
     caches.open(CACHE).then(c => c.put(e.request, copy));

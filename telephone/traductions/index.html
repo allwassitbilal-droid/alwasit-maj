@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Traductions</title>
+  <meta name="theme-color" content="#0F1E33">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Traductions">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../caisse/caisse.css">
+  <link rel="stylesheet" href="trad.css">
+</head>
+<body>
+  <!-- Login: the same email + password as ☁ in the extensions, «À faire» and «Caisse» -->
+  <main id="login-view" hidden>
+    <div class="login-card">
+      <div class="logo">TR</div>
+      <h1>Traductions</h1>
+      <p>Le registre des documents traduits par l'agence.<br>Connectez-vous avec le compte ☁ de l'équipe.</p>
+      <form id="login">
+        <label>Email<input name="email" type="email" autocomplete="username" required></label>
+        <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Se connecter</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </div>
+  </main>
+
+  <main id="app-view" hidden>
+    <header class="top">
+      <div class="top-row">
+        <div>
+          <h1 id="title">Registre</h1>
+          <p class="sub" id="sub"></p>
+        </div>
+        <button type="button" class="icon" id="menu" aria-label="Menu">⋯</button>
+      </div>
+      <div class="sum" id="sum"></div>
+    </header>
+    <div class="menu" id="menu-box" hidden>
+      <span id="who"></span>
+      <button type="button" id="pincode">🔒 Changer le code</button>
+      <button type="button" id="logout">Se déconnecter</button>
+    </div>
+    <section id="list" aria-live="polite"></section>
+    <button type="button" class="add-doc" id="add">＋ Nouveau document</button>
+    <nav class="tabs" aria-label="Écrans">
+      <button type="button" data-v="registre"><span>📒</span>Registre</button>
+      <button type="button" data-v="traducteurs"><span>👤</span>Traducteurs</button>
+      <button type="button" data-v="bilan"><span>📊</span>Bilan</button>
+    </nav>
+  </main>
+
+  <!-- One document: new or edit -->
+  <div id="doc" class="page" hidden></div>
+  <!-- Report to save as PDF (print) -->
+  <div id="report" class="page report-page" hidden></div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="../config.js"></script>
+  <script src="../supabase.js"></script>
+  <script src="../pin.js"></script>
+  <script src="trad.js"></script>
+</body>
+</html>

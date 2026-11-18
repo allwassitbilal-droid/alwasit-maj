@@ -24,3 +24,7 @@ Aucune donnée de client ici : seulement le code des extensions.
 - `telephone/caisse/` : l'app « Caisse » (entrées / sorties de l'agence, écrites à la main), publiée sur `…netlify.app/caisse/`.
   `supabase-caisse.sql` : à lancer **une fois** dans Supabase (SQL Editor) pour le tableau « caisse ».
   Annonce Telegram : changer `VERSION` et `NOUVEAUTES` en haut de `telephone/caisse/caisse.js`.
+
+- `telephone/traductions/` : l'app « Traductions » (registre N° T-AAAA-0001, prix / coût traducteur / bénéfice, traducteurs, bilan PDF + Excel),
+  publiée sur `…netlify.app/traductions/`. Même tableau « traductions » que 📝 ; protégée par le code d'équipe (`telephone/pin.js`).
+  Annonce Telegram : changer `VERSION` et `NOUVEAUTES` en haut de `telephone/traductions/trad.js`.

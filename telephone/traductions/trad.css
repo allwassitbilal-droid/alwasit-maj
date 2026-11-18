@@ -1,0 +1,65 @@
+/* «Traductions» app: on top of ../caisse/caisse.css (same night sky), with violet for the translations. */
+:root { --accent: #A98BE0; --accent-ink: #1E0F3A; --violet: #6B4FA0; --warn: #F5B26B; }
+.logo { background: linear-gradient(135deg, #7C5CB8, #4E3780); }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.sum .warn b { color: var(--warn); }
+.ok { color: var(--in); }
+.bad { color: var(--out); }
+.warn { color: var(--warn); }
+.muted { color: var(--muted); }
+#list { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+
+/* Bottom: ＋ and the 3 screens */
+.add-doc { position: fixed; left: 16px; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 3; border: 0; border-radius: 14px; padding: 14px;
+  background: var(--accent); color: var(--accent-ink); font-weight: 750; font-size: 17px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: var(--deep); border-top: 1px solid var(--line); }
+.tabs button { border: 0; background: none; color: var(--muted); border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12.5px; font-weight: 600; }
+.tabs button span { font-size: 21px; line-height: 1; filter: grayscale(.6); opacity: .8; }
+.tabs button.on { background: #1E2F4D; color: var(--text); }
+.tabs button.on span { filter: none; opacity: 1; }
+
+/* Register cards */
+.docs { display: flex; flex-direction: column; gap: 8px; }
+.doc-card, .tr-card { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 11px 13px; border-radius: 14px;
+  border: 1px solid var(--line); border-left: 5px solid var(--violet); background: var(--deep); }
+.dc-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dc-num { font: 700 16px/1.2 var(--display); color: var(--accent); letter-spacing: .4px; }
+.dc-etat { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: #1E2F4D; color: var(--muted); white-space: nowrap; }
+.dc-etat.bureau { background: #1D3557; color: #9CC3FF; }
+.dc-etat.prete { background: var(--in-bg); color: var(--in); }
+.dc-etat.remise { background: #222C3A; color: #7C889A; }
+.dc-type { font-weight: 700; font-size: 15.5px; }
+.dc-meta { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-money { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px; font-size: 13px; }
+.dc-money b { margin-left: auto; font: 700 15px/1.2 var(--display); }
+.tr-name { font-size: 16px; }
+
+/* Document page */
+.tform .phead p.added { margin: 2px 0 0; }
+.cardsec { display: flex; flex-direction: column; gap: 10px; padding: 13px; border-radius: 14px; border: 1px solid var(--line); background: var(--deep); }
+.cardsec h3 { margin: 0; font: 700 14px/1.2 var(--display); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.cardsec input, .cardsec select { background: var(--sky); }
+.mini { align-self: flex-start; border: 1px solid var(--line); background: none; border-radius: 9px; padding: 6px 11px; font-size: 13px; color: var(--muted); }
+.tres { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tres div { padding: 9px 11px; border-radius: 12px; background: var(--sky); border: 1px solid var(--line); display: flex; flex-direction: column; }
+.tres .big { grid-column: 1 / -1; border-color: #4E3780; }
+.tres span { font-size: 12px; color: var(--muted); }
+.tres b { font: 700 19px/1.2 var(--display); }
+.tres .big b { font-size: 24px; }
+
+/* Bilan */
+.period { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.period .month { margin: 0; }
+.bsec { padding: 12px 13px; border-radius: 14px; border: 1px solid var(--line); background: var(--deep); }
+.bsec h3 { margin: 0 0 6px; font: 700 15px/1.2 var(--display); letter-spacing: .4px; }
+.btable { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.btable th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+.btable th:not(:first-child), .btable td.n { text-align: right; white-space: nowrap; }
+.btable td { padding: 6px 4px; border-bottom: 1px solid #172A45; }
+.btable tr:last-child td { border-bottom: 0; }
+.bact { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ghost { border: 1px solid var(--line); background: var(--deep); border-radius: 12px; padding: 13px; font-weight: 650; }
+.report header { border-bottom-color: #6B4FA0; }
+.report h1, .report h2 { color: #3B2470; }
+.report .kpis .net { background: #F4F0FB; border-color: #CDBDEB; }
