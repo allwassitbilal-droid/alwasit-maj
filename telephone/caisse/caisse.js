@@ -355,7 +355,7 @@
     document.body.classList.add('noscroll');
     $('#menu-box').hidden = true;
   }
-  window.addEventListener('afterprint', () => { document.title = 'Caisse · Al Wasit'; });
+  window.addEventListener('afterprint', () => { document.title = 'Caisse'; });
 
   // ---- 🔄 Tell the team on Telegram about a new version (once, by the first phone that opens it) ----
   async function announce() {
