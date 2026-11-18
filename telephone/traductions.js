@@ -2,7 +2,8 @@
 // One row per document in the Supabase table "traductions" (supabase-traductions.sql), shared with the
 // «📝 Traductions» panel of Autofill TLS and Autofill BLS: same fields, same table.
 // A document stays in the list until someone deletes it (🗑, two taps): nothing goes away by itself.
-// data: { id, type, client, de, vers, pages, prix, paye, etat, livraison, notes, cree, by }
+// data: { id, type, client, de, vers, pages, prix, paye, etat, traducteur, envoi, livraison, remise, notes, cree, by }
+// envoi = sent to the translator, livraison = to give back by, remise = given back to the client.
 globalThis.AFTrad = (() => {
   const { sb, el, $, toast } = AF;
   const TABLE = 'traductions';
@@ -67,7 +68,7 @@ globalThis.AFTrad = (() => {
     if (ui.f === 'cours') list = list.filter(d => d.etat !== 'remise');
     else if (ui.f === 'prete' || ui.f === 'remise') list = list.filter(d => d.etat === ui.f);
     else if (ui.f === 'reste') list = list.filter(d => pay(d)?.reste > 0);
-    if (q) list = list.filter(d => norm(`${d.client} ${d.type} ${d.de} ${d.vers} ${d.notes}`).includes(q));
+    if (q) list = list.filter(d => norm(`${d.client} ${d.type} ${d.de} ${d.vers} ${d.traducteur} ${d.notes}`).includes(q));
     return [...list].sort((x, y) => (y.cree || 0) - (x.cree || 0)); // newest first, one under the other
   }
 
@@ -84,6 +85,7 @@ globalThis.AFTrad = (() => {
         el('span', { className: 'cbody' },
           el('span', { className: 'cname', textContent: d.type || '(type ?)' }),
           el('span', { className: 'cmeta', textContent: [d.client && '👤 ' + d.client, langs(d) && '🌐 ' + langs(d)].filter(Boolean).join('   ') || ' ' }),
+          d.traducteur || d.envoi || d.remise ? el('span', { className: 'cmeta', textContent: [d.traducteur && '✍️ ' + d.traducteur, d.envoi && '📤 envoyé le ' + frDate(d.envoi).slice(0, 5), d.remise && '📦 remis le ' + frDate(d.remise).slice(0, 5)].filter(Boolean).join('   ') }) : null,
           badges.length ? el('span', { className: 'cbadges' }, ...badges) : null,
           d.cree ? el('span', { className: 'tadded', textContent: added(d.cree) }) : null)));
   }
@@ -127,7 +129,7 @@ globalThis.AFTrad = (() => {
   function open(id) {
     const d = id ? rows.find(r => r.id === id) : null;
     if (id && !d) return toast('Document introuvable', true);
-    cur = { id, data: d ? { ...d } : { etat: 'traducteur', de: 'Arabe', vers: 'Français' } };
+    cur = { id, data: d ? { ...d } : { etat: 'traducteur', de: 'Arabe', vers: 'Français', envoi: AF.ymd() } };
     armed = false;
     const page = $('#trad-page');
     page.hidden = false;
@@ -155,6 +157,7 @@ globalThis.AFTrad = (() => {
       el('datalist', { id: 'dl-ttypes' }, ...TYPES.map(v => el('option', { value: v }))),
       el('datalist', { id: 'dl-tlangs' }, ...LANGUES.map(v => el('option', { value: v }))),
       el('datalist', { id: 'dl-tclients' }, ...names.map(v => el('option', { value: v }))),
+      el('datalist', { id: 'dl-ttrad' }, ...[...new Set(rows.map(r => r.traducteur).filter(Boolean))].sort().map(v => el('option', { value: v }))),
     ];
     const etat = el('select', { name: 'etat' }, ...Object.entries(ETATS).map(([k, t]) => el('option', { value: k, textContent: t, selected: (d.etat || 'traducteur') === k })));
     // 💰 like the clients' Paiement
@@ -177,12 +180,18 @@ globalThis.AFTrad = (() => {
         el('div', { className: 'two' },
           field('Langue du document', inp('de', d.de, { list: 'dl-tlangs' })),
           field('Traduire en', inp('vers', d.vers, { list: 'dl-tlangs' }))),
-        el('div', { className: 'two' },
-          field('Nombre de pages', inp('pages', d.pages, { type: 'number', inputMode: 'numeric', min: 1 })),
-          field('À livrer le', inp('livraison', d.livraison, { type: 'date' }))),
-        field('État', etat),
-        field('Notes', el('textarea', { name: 'notes', rows: 2, value: d.notes || '', placeholder: 'Ex : traducteur, original à rendre…' })),
+        field('Nombre de pages', inp('pages', d.pages, { type: 'number', inputMode: 'numeric', min: 1 })),
         ...lists),
+      el('section', { className: 'cs' },
+        el('h3', { textContent: 'Traducteur' }),
+        field('Nom du traducteur', inp('traducteur', d.traducteur, { list: 'dl-ttrad', placeholder: 'Nom du traducteur', autocapitalize: 'words' })),
+        el('div', { className: 'two' },
+          field('Envoyé au traducteur le', inp('envoi', d.envoi, { type: 'date' })),
+          field('À livrer le', inp('livraison', d.livraison, { type: 'date' }))),
+        el('div', { className: 'two' },
+          field('État', etat),
+          field('Remis au client le', inp('remise', d.remise, { type: 'date' }))),
+        field('Notes', el('textarea', { name: 'notes', rows: 2, value: d.notes || '', placeholder: 'Ex : original à rendre…' }))),
       el('section', { className: 'cs' },
         el('h3', { textContent: 'Paiement' }),
         el('div', { className: 'two' }, field('Prix (DH)', prix), field('Déjà payé (DH)', paye)),
@@ -191,6 +200,7 @@ globalThis.AFTrad = (() => {
         payHint),
       del ? el('section', { className: 'cs' }, del, el('small', { className: 'hint', textContent: 'Le document reste dans la liste tant qu\'on ne le supprime pas.' })) : '',
       el('div', { className: 'csave' }, el('button', { type: 'submit', className: 'primary', textContent: id ? 'Enregistrer' : 'Ajouter le document' })));
+    etat.onchange = () => { if (etat.value === 'remise' && !f.elements.remise.value) f.elements.remise.value = AF.ymd(); };
     f.onsubmit = e => { e.preventDefault(); save(f); };
     $('#trad-page').replaceChildren(head, f);
   }
@@ -206,6 +216,8 @@ globalThis.AFTrad = (() => {
     const data = JSON.parse(JSON.stringify({
       ...cur.data, id, type: v('type'), client: v('client'), de: v('de') || undefined, vers: v('vers') || undefined,
       pages: v('pages') === '' ? undefined : +v('pages'), livraison: v('livraison') || undefined, etat: v('etat') || 'traducteur',
+      traducteur: v('traducteur') || undefined, envoi: v('envoi') || undefined,
+      remise: v('remise') || (v('etat') === 'remise' ? AF.ymd() : undefined), // «Remise au client» without a date: today
       notes: v('notes') || undefined, prix: amount(v('prix')), paye: amount(v('paye')),
       cree: cur.data.cree || Date.now(), by: cur.data.by || me || undefined,
     }));
