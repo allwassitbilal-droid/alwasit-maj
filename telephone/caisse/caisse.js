@@ -7,13 +7,10 @@
   const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
   const TABLE = 'caisse';
   // 🔄 Version of this app and what is new in it: the first phone that opens a new version tells the team on Telegram.
-  const VERSION = '2026-11-18.2';
+  const VERSION = '2026-11-18.3';
   const NOUVEAUTES = [
-    '💰 أپليكاسيون جديدة «Caisse»: المداخيل والمصاريف ديال الوكالة، كتكتبوهم بيديكم (ماشي مربوطة بالدوسيات).',
-    'كل عملية فيها: النوع، المبلغ بالدرهم، النهار، طريقة الخلاص، شكون كتبها (Bilal / Ahmed / Hmouri) وملاحظة.',
-    'الفوق: شحال دخل، شحال خرج وشحال بقا فالشهر واليوم. وكاين ⬇ Excel ديال الشهر فـ ⋯.',
-    '📄 Rapport PDF ديال الشهر ولا العام: المداخيل والمصاريف، على حساب النوع، على حساب الشخص، الكليان اللي خلصو وشحال، طريقة الخلاص، نهار بنهار، وكاع العمليات.',
-    'زيدوها للإيكران: حلو golden-zabaione-79fe0d.netlify.app/caisse/ ← ⋮ ← Ajouter à l\'écran d\'accueil.',
+    '🔒 Caisse ولات كتطلب كود ديال 4 أرقام ملي كتحلها. نفس الكود ديال 📝 Traductions، وكيتعطى غير للي خاصو يدخل.',
+    'الكود ما كيتبدلش بوحدو. باش تبدلوه: ⋯ ← 🔒 Changer le code (خاص الكود القديم).',
   ];
   const CATS = {
     in: [['rdv-es', '🇪🇸 RDV Espagne'], ['rdv-fr', '🇫🇷 RDV France'], ['vfs', '🛂 VFS'], ['reservation', '🏨 Réservation'],
@@ -399,11 +396,24 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && cur) close(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && me) load(); });
 
+  // 🔒 The team's 4-digit code (pin.js), kept in the row "__code__" of the table "traductions".
+  const code = {
+    get: async () => { const { data, error } = await sb.from('traductions').select('data').eq('id', '__code__').maybeSingle(); if (error) throw error; return data?.data || null; },
+    set: async v => { const { error } = await sb.from('traductions').upsert({ id: '__code__', data: v, updated_at: new Date().toISOString(), updated_by: me }); if (error) throw error; },
+  };
+  async function lock() {
+    $('#app-view').hidden = true;
+    while (!(await AAPin.unlock({ ...code, cancel: false, title: '💰 Caisse' }))) { /* no way around: the code is asked again */ }
+    $('#app-view').hidden = false;
+  }
+  AAPin.relockAfter(5 * 60_000, () => { if (me) lock(); });
+  $('#pincode').onclick = async () => { $('#menu-box').hidden = true; if (await AAPin.change(code)) toast('✓ Nouveau code enregistré (pour toute l\'équipe)'); };
+
   async function start(session) {
     me = session.user.email || '';
     $('#who').textContent = me;
     $('#login-view').hidden = true;
-    $('#app-view').hidden = false;
+    await lock();
     render();
     await load();
     live();

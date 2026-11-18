@@ -245,3 +245,8 @@ body[data-view="trad"] .ctool { position: static; }
 .tdel { color: var(--late); width: 100%; }
 .tdel.armed { background: var(--late); color: #fff; border-color: transparent; }
 .cbadge.bureau { background: #DCE8FB; color: #1D4F9A; }
+
+/* 🔒 Traductions locked (pin.js) */
+.tlocked { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 50px 20px; text-align: center; color: var(--muted); }
+.tlocked > div { font-size: 34px; }
+.tcode { align-self: center; margin: 14px auto 0; display: block; }

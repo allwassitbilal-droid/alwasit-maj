@@ -14,7 +14,20 @@ globalThis.AFTrad = (() => {
   const LANGUES = ['Arabe', 'Français', 'Espagnol', 'Anglais', 'Allemand', 'Italien', 'Néerlandais', 'Portugais'];
   const FILTERS = [['', 'Toutes'], ['cours', 'En cours'], ['bureau', '🏢 Au bureau'], ['prete', '✅ Prêtes'], ['remise', '📦 Remises'], ['reste', '💰 Reste à payer']];
   const ui = { q: '', f: '' };
-  let rows = [], loaded = false, loading = null, cur = null, armed = false;
+  let rows = [], loaded = false, loading = null, cur = null, armed = false, unlocked = false;
+  // 🔒 The team's 4-digit code (pin.js): kept hashed in the row "__code__" of this table; that row is not a document.
+  const code = {
+    get: async () => { const { data, error } = await sb.from(TABLE).select('data').eq('id', '__code__').maybeSingle(); if (error) throw error; return data?.data || null; },
+    set: async v => { const { error } = await sb.from(TABLE).upsert({ id: '__code__', data: v, updated_at: new Date().toISOString(), updated_by: AF.me() }); if (error) throw error; },
+  };
+  const isDoc = id => !String(id).startsWith('__');
+  let asking = false;
+  async function openLock() {
+    if (asking) return; // one code screen at a time
+    asking = true;
+    try { if (await AAPin.unlock({ ...code, title: '📝 Traductions' })) { unlocked = true; AF.render(); } } finally { asking = false; }
+  }
+  AAPin.relockAfter(5 * 60_000, () => { unlocked = false; if (cur) close(); if (AF.view() === 'trad') AF.render(); });
 
   const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const frDate = iso => (iso ? iso.split('-').reverse().join('/') : '');
@@ -40,7 +53,7 @@ globalThis.AFTrad = (() => {
       for (let from = 0; ; from += 1000) {
         const { data, error } = await sb.from(TABLE).select('id,data').range(from, from + 999);
         if (error) throw error;
-        out.push(...data.map(r => ({ ...r.data, id: r.id })));
+        out.push(...data.filter(r => isDoc(r.id)).map(r => ({ ...r.data, id: r.id })));
         if (data.length < 1000) break;
       }
       rows = out;
@@ -56,7 +69,7 @@ globalThis.AFTrad = (() => {
     if (channel) return;
     channel = sb.channel('traductions-mobile').on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, p => {
       const id = p.new?.id || p.old?.id;
-      if (!id) return;
+      if (!id || !isDoc(id)) return;
       rows = p.eventType === 'DELETE' ? rows.filter(r => r.id !== id) : [...rows.filter(r => r.id !== id), { ...(p.new.data || {}), id }];
       if (AF.view() === 'trad') AF.render();
     }).subscribe();
@@ -91,6 +104,12 @@ globalThis.AFTrad = (() => {
   }
 
   function render(list) {
+    if (!unlocked) {
+      list.replaceChildren(el('div', { className: 'tlocked' }, el('div', { textContent: '🔒' }), el('p', { textContent: 'Les traductions sont protégées par le code de l\'équipe.' }),
+        el('button', { type: 'button', className: 'primary', textContent: 'Taper le code', onclick: openLock })));
+      openLock();
+      return;
+    }
     if (!loaded) { list.replaceChildren(el('p', { className: 'empty', textContent: 'Chargement…' })); load(); live(); return; }
     live();
     let tool = list.querySelector('.ctool.trad');
@@ -98,7 +117,8 @@ globalThis.AFTrad = (() => {
       const q = el('input', { type: 'search', className: 'csearch', placeholder: 'Chercher : client, document, langue…', value: ui.q, ariaLabel: 'Chercher une traduction' });
       q.oninput = () => { ui.q = q.value; fill(list); };
       tool = el('div', { className: 'ctool trad' }, q, el('div', { className: 'cfolders' }));
-      list.replaceChildren(tool, el('div', { className: 'tsum' }), el('p', { className: 'ccount' }), el('ul', { className: 'clist' }));
+      list.replaceChildren(tool, el('div', { className: 'tsum' }), el('p', { className: 'ccount' }), el('ul', { className: 'clist' }),
+        el('button', { type: 'button', className: 'mini tcode', textContent: '🔒 Changer le code', onclick: async () => { if (await AAPin.change(code)) toast('✓ Nouveau code enregistré (pour toute l\'équipe)'); } }));
     }
     fill(list);
   }
@@ -127,6 +147,7 @@ globalThis.AFTrad = (() => {
   };
 
   function open(id) {
+    if (!unlocked) return openLock();
     const d = id ? rows.find(r => r.id === id) : null;
     if (id && !d) return toast('Document introuvable', true);
     cur = { id, data: d ? { ...d } : { etat: 'traducteur', de: 'Arabe', vers: 'Français', envoi: AF.ymd() } };

@@ -7,9 +7,10 @@
   const TEAM = '__equipe__';
   // 🔄 Version of this phone page and what is new in it. Change both with each update of telephone/:
   // the first phone that opens a new version tells the team on Telegram, once (team row → data.majTel).
-  const VERSION = '2026-11-18.2';
+  const VERSION = '2026-11-18.3';
   const NOUVEAUTES = [
-    '📝 Traductions: زدنا سمية المترجم، النهار اللي تصيفطات فيه للمترجم، النهار اللي تسلمات فيه للكليان، والحالة «🏢 Au bureau».',
+    '🔒 📝 Traductions ولات كتطلب كود ديال 4 أرقام (فالتليفون وفالبيسي). نفس الكود ديال Caisse، وكيتعطى غير للي خاصو يدخل.',
+    'الكود ما كيتبدلش بوحدو. باش تبدلوه: 🔒 Changer le code (لتحت فالليستة، خاص الكود القديم).',
   ];
   const APPS = {
     tls: { table: 'clients_tls', bucket: 'fichiers-tls', fields: 'dossier,passeport,mobile,famille,etape,rdvDate,rdvHeure,tlsCree,manque,archive,pret,prix,paye,ajout' },
