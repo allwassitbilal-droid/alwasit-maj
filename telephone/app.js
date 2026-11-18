@@ -7,9 +7,9 @@
   const TEAM = '__equipe__';
   // 🔄 Version of this phone page and what is new in it. Change both with each update of telephone/:
   // the first phone that opens a new version tells the team on Telegram, once (team row → data.majTel).
-  const VERSION = '2026-11-18.1';
+  const VERSION = '2026-11-18.2';
   const NOUVEAUTES = [
-    '📝 Traductions: زدنا سمية المترجم، النهار اللي تصيفطات فيه للمترجم، والنهار اللي تسلمات فيه للكليان.',
+    '📝 Traductions: زدنا سمية المترجم، النهار اللي تصيفطات فيه للمترجم، النهار اللي تسلمات فيه للكليان، والحالة «🏢 Au bureau».',
   ];
   const APPS = {
     tls: { table: 'clients_tls', bucket: 'fichiers-tls', fields: 'dossier,passeport,mobile,famille,etape,rdvDate,rdvHeure,tlsCree,manque,archive,pret,prix,paye,ajout' },

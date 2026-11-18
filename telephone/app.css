@@ -244,3 +244,4 @@ body[data-view="trad"] .ctool { position: static; }
 .tsum span { font-size: 12px; color: var(--muted); }
 .tdel { color: var(--late); width: 100%; }
 .tdel.armed { background: var(--late); color: #fff; border-color: transparent; }
+.cbadge.bureau { background: #DCE8FB; color: #1D4F9A; }

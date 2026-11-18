@@ -7,12 +7,12 @@
 globalThis.AFTrad = (() => {
   const { sb, el, $, toast } = AF;
   const TABLE = 'traductions';
-  const ETATS = { traducteur: '✍️ Chez le traducteur', prete: '✅ Prête', remise: '📦 Remise au client' };
+  const ETATS = { traducteur: '✍️ Chez le traducteur', bureau: '🏢 Au bureau', prete: '✅ Prête', remise: '📦 Remise au client' };
   const TYPES = ['Acte de naissance', 'Copie intégrale', 'Fiche anthropométrique (casier)', 'Certificat de résidence', 'Attestation de travail',
     'Bulletins de paie', 'Relevé bancaire', 'Attestation de scolarité', 'Diplôme', 'Relevé de notes', 'Acte de mariage', 'Livret de famille',
     'Certificat de vie individuelle', 'Registre de commerce', 'Attestation CNSS', 'Contrat de travail', 'Permis de conduire', 'Jugement'];
   const LANGUES = ['Arabe', 'Français', 'Espagnol', 'Anglais', 'Allemand', 'Italien', 'Néerlandais', 'Portugais'];
-  const FILTERS = [['', 'Toutes'], ['cours', 'En cours'], ['prete', '✅ Prêtes'], ['remise', '📦 Remises'], ['reste', '💰 Reste à payer']];
+  const FILTERS = [['', 'Toutes'], ['cours', 'En cours'], ['bureau', '🏢 Au bureau'], ['prete', '✅ Prêtes'], ['remise', '📦 Remises'], ['reste', '💰 Reste à payer']];
   const ui = { q: '', f: '' };
   let rows = [], loaded = false, loading = null, cur = null, armed = false;
 
@@ -66,7 +66,7 @@ globalThis.AFTrad = (() => {
     const q = norm(ui.q.trim());
     let list = rows;
     if (ui.f === 'cours') list = list.filter(d => d.etat !== 'remise');
-    else if (ui.f === 'prete' || ui.f === 'remise') list = list.filter(d => d.etat === ui.f);
+    else if (ETATS[ui.f]) list = list.filter(d => d.etat === ui.f);
     else if (ui.f === 'reste') list = list.filter(d => pay(d)?.reste > 0);
     if (q) list = list.filter(d => norm(`${d.client} ${d.type} ${d.de} ${d.vers} ${d.traducteur} ${d.notes}`).includes(q));
     return [...list].sort((x, y) => (y.cree || 0) - (x.cree || 0)); // newest first, one under the other
@@ -75,7 +75,7 @@ globalThis.AFTrad = (() => {
   function card(d) {
     const p = pay(d);
     const badges = [
-      d.etat ? el('span', { className: 'cbadge ' + (d.etat === 'remise' ? 'past' : d.etat === 'prete' ? 'ok' : ''), textContent: ETATS[d.etat] || d.etat }) : null,
+      d.etat ? el('span', { className: 'cbadge ' + (d.etat === 'remise' ? 'past' : d.etat === 'prete' ? 'ok' : d.etat === 'bureau' ? 'bureau' : ''), textContent: ETATS[d.etat] || d.etat }) : null,
       d.livraison && d.etat !== 'remise' ? el('span', { className: 'cbadge ' + (late(d) ? 'soon' : ''), textContent: `${late(d) ? '⏰ En retard' : '📅 Pour le'} ${frDate(d.livraison).slice(0, 5)}` }) : null,
       p ? (p.reste > 0 ? el('span', { className: 'cbadge due', textContent: `💰 Reste ${money(p.reste)}` }) : el('span', { className: 'cbadge ok', textContent: `✓ Payé ${money(p.prix)}` })) : null,
     ].filter(Boolean);
