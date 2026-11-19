@@ -73,3 +73,10 @@
 .tf-row b { font: 700 14px/1.1 var(--display); text-align: right; white-space: nowrap; }
 .tf-head span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
 .tf-del { width: 30px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: none; color: var(--muted); }
+
+/* 👆 Types from the tariffs, to touch instead of typing */
+.tpicks { display: flex; flex-wrap: wrap; gap: 6px; max-height: 210px; overflow-y: auto; padding: 2px; }
+.tpicks button { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid var(--line); background: var(--sky); border-radius: 11px; padding: 8px 11px; font-size: 14px; }
+.tpicks button b { font: 700 13px/1 var(--display); color: var(--accent); }
+.tpicks button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 650; }
+.tpicks button.on b { color: var(--accent-ink); }

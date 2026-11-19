@@ -9,10 +9,10 @@
   const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
   const TABLE = 'traductions';
   // 🔄 Version of this app and what is new in it: the first phone that opens a new version tells the team on Telegram.
-  const VERSION = '2026-11-19.1';
+  const VERSION = '2026-11-19.2';
   const NOUVEAUTES = [
-    '💲 Tarifs فـ Traductions: الثمن ديالنا لكل نوع ديال الوثيقة (عقود الزواج 300، شواهد الملكية 150…)، وحداه الثمن ديال المترجم.',
-    'ملي كتختار النوع فالورقة، كيتعمر الثمن ديالنا والثمن ديال المترجم بوحدهم، والربح كيبان، والطوطال فـ Bilan.',
+    '💲 Tarifs فـ Traductions: الثمن ديالنا لكل نوع ديال الوثيقة، وحداه الثمن ديال المترجم.',
+    '👆 ملي كتزيد ورقة، كتبان الليستة ديال الأنواع بحال بوطونات: كليكي على النوع، والثمن ديالنا والثمن ديال المترجم كيتعمرو بوحدهم.',
   ];
   const ETATS = { traducteur: '✍️ Chez le traducteur', bureau: '🏢 Au bureau', prete: '✅ Prête', remise: '📦 Remise au client' };
   // 💲 Prices of the agency by type of document (the list on paper), and the translator's price next to each one.
@@ -338,7 +338,13 @@
         el('div', {}, el('h2', { textContent: isNew ? 'Nouveau document' : d.num || 'Document' }),
           el('p', { className: 'added', textContent: isNew ? `Le N° sera ${nextNum(String(new Date().getFullYear()))}` : `${d.type || ''} · ajouté le ${new Date(d.cree || Date.now()).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}${d.by ? ' · ' + d.by.split('@')[0] : ''}` }))),
       el('section', { className: 'cardsec' }, el('h3', { textContent: 'Document' }),
-        lab('Type de document', inp('type', d.type, { list: 'dl-types', placeholder: 'Ex : Acte de naissance' })),
+        lab('Type de document', inp('type', d.type, { list: 'dl-types', placeholder: 'Touchez un type ci-dessous, ou écrivez-le' })),
+        tarifs.length ? el('div', { className: 'tpicks' }, ...tarifs.map(t => {
+          const b = el('button', { type: 'button', className: norm(t.nom) === norm(d.type) ? 'on' : '', onclick: () => pickTarif(t) },
+            el('span', { textContent: t.nom }), amount(t.prix) !== undefined ? el('b', { textContent: money(t.prix) }) : null);
+          b.dataset.nom = t.nom; // dataset is read-only as a whole
+          return b;
+        })) : null,
         el('div', { className: 'two' }, lab('Client', inp('client', d.client, { list: 'dl-clients', placeholder: 'Nom et prénom', autocapitalize: 'words' })),
           lab('Téléphone (optionnel)', inp('tel', d.tel, { type: 'tel', inputMode: 'tel', placeholder: '06…' }))),
         el('div', { className: 'two' }, lab('Langue du document', inp('de', d.de, { list: 'dl-langs' })), lab('Traduire en', inp('vers', d.vers, { list: 'dl-langs' }))),
@@ -369,6 +375,16 @@
       sync();
     };
     typeIn.addEventListener('change', fillTarif);
+    // Touching a type in the list: the type, our price and the translator's price are written (replacing what was there)
+    const paintPicks = () => f.querySelectorAll('.tpicks button').forEach(b => b.classList.toggle('on', norm(b.dataset.nom) === norm(typeIn.value.trim())));
+    var pickTarif = t => {
+      typeIn.value = t.nom;
+      if (amount(t.prix) !== undefined) prix.value = t.prix;
+      cout.value = amount(t.cout) !== undefined ? t.cout : '';
+      paintPicks();
+      sync();
+    };
+    typeIn.addEventListener('input', paintPicks);
     typeIn.addEventListener('input', () => { if (tarifOf(typeIn.value.trim())) fillTarif(); });
     etat.onchange = () => { if (etat.value === 'remise' && !f.elements.remise.value) f.elements.remise.value = ymd(); };
     f.onsubmit = e => { e.preventDefault(); save(f); };
