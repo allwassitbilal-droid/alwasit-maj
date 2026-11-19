@@ -1,6 +1,8 @@
-# Netlify (site golden-zabaione-79fe0d): publish only the phone page, as it is (no build).
-# With the site linked to this repo, every push to main republishes telephone/ by itself.
+# Netlify (site golden-zabaione-79fe0d): publish only the phone pages (telephone/), as they are (no build).
+# Free plan: each production deploy costs 15 of the 300 monthly credits (at 300 the site pauses until next month),
+# so a push that changes nothing in telephone/ (extension updates, version.json…) is skipped: "ignore" exits 0 = skip.
 [build]
   base = "telephone"
   publish = "."
   command = ""
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
