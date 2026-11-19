@@ -1,5 +1,5 @@
 // Lets the phone install «Traductions» as an app. Network first (the register must be fresh); the saved copy only opens the page offline.
-const CACHE = 'trad-v1';
+const CACHE = 'trad-v2';
 const SHELL = ['./', 'index.html', 'trad.css', 'trad.js', '../config.js', '../supabase.js', '../pin.js', 'manifest.webmanifest', 'icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

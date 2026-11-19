@@ -12,7 +12,7 @@
 /* Bottom: ＋ and the 3 screens */
 .add-doc { position: fixed; left: 16px; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 3; border: 0; border-radius: 14px; padding: 14px;
   background: var(--accent); color: var(--accent-ink); font-weight: 750; font-size: 17px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
-.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
   padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: var(--deep); border-top: 1px solid var(--line); }
 .tabs button { border: 0; background: none; color: var(--muted); border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12.5px; font-weight: 600; }
 .tabs button span { font-size: 21px; line-height: 1; filter: grayscale(.6); opacity: .8; }
@@ -63,3 +63,13 @@
 .report header { border-bottom-color: #6B4FA0; }
 .report h1, .report h2 { color: #3B2470; }
 .report .kpis .net { background: #F4F0FB; border-color: #CDBDEB; }
+
+/* 💲 Tarifs */
+.rhint.dark { color: var(--muted); margin: 0; font-size: 13px; }
+.tarifs { display: flex; flex-direction: column; gap: 6px; }
+.tf-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, .9fr) minmax(0, .9fr) minmax(0, .9fr) 30px; gap: 6px; align-items: center; }
+.tf-row input { padding: 9px 8px; font-size: 14.5px; }
+.tf-row input:first-child { direction: auto; }
+.tf-row b { font: 700 14px/1.1 var(--display); text-align: right; white-space: nowrap; }
+.tf-head span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+.tf-del { width: 30px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: none; color: var(--muted); }

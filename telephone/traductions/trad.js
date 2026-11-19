@@ -9,14 +9,20 @@
   const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
   const TABLE = 'traductions';
   // 🔄 Version of this app and what is new in it: the first phone that opens a new version tells the team on Telegram.
-  const VERSION = '2026-11-18.1';
+  const VERSION = '2026-11-19.1';
   const NOUVEAUTES = [
-    '📝 أپليكاسيون جديدة «Traductions» بوحدها: السجل ديال الوراق المترجمة (كل ورقة عندها رقم T-2026-0001…)، فيها نفس الوراق اللي كانو فـ 📝.',
-    '💰 فكل ورقة: الثمن للكليان وشحال خلص، الكلفة ديال المترجم وشحال خلصناه، والربح كيتحسب بوحدو.',
-    '👤 المترجمين: شحال من ورقة عند كل واحد وشحال باقي ليه. 📊 Bilan ديال الشهر ولا العام، مع PDF وExcel.',
-    '🔒 كتطلب نفس الكود ديال Caisse. زيدوها للإيكران: golden-zabaione-79fe0d.netlify.app/traductions/ ← ⋮ ← Installer.',
+    '💲 Tarifs فـ Traductions: الثمن ديالنا لكل نوع ديال الوثيقة (عقود الزواج 300، شواهد الملكية 150…)، وحداه الثمن ديال المترجم.',
+    'ملي كتختار النوع فالورقة، كيتعمر الثمن ديالنا والثمن ديال المترجم بوحدهم، والربح كيبان، والطوطال فـ Bilan.',
   ];
   const ETATS = { traducteur: '✍️ Chez le traducteur', bureau: '🏢 Au bureau', prete: '✅ Prête', remise: '📦 Remise au client' };
+  // 💲 Prices of the agency by type of document (the list on paper), and the translator's price next to each one.
+  // Kept in the row "__tarifs__" of the table; until it is saved once, this list is shown.
+  const TARIFS0 = [['عقود الزواج', 300], ['عقود الطلاق', 300], ['عقود الشراء العدلية', 350], ['شواهد الملكية', 150], ['رخصة البناية', 150],
+    ['عقود الكراء', 200], ['الشواهد الفلاحية', 150], ['القرار العاملي TAXI', 200], ['السجل التجاري', 200], ['عقد كراء المأذونية', 250],
+    ['المأذونية (الكريمة)', 250], ['الشواهد الإدارية', 150], ['نسخة كاملة', 200], ['شواهد العزوبة', 150], ['توكيل', 200], ['Model 7', 300]]
+    .map(([nom, prix]) => ({ nom, prix }));
+  let tarifs = TARIFS0, tarifsSaved = false;
+  const tarifOf = type => tarifs.find(t => norm(t.nom) === norm(type));
   const TYPES = ['Acte de naissance', 'Copie intégrale', 'Fiche anthropométrique (casier)', 'Certificat de résidence', 'Attestation de travail',
     'Bulletins de paie', 'Relevé bancaire', 'Attestation de scolarité', 'Diplôme', 'Relevé de notes', 'Acte de mariage', 'Livret de famille',
     'Certificat de vie individuelle', 'Registre de commerce', 'Attestation CNSS', 'Contrat de travail', 'Permis de conduire', 'Jugement'];
@@ -44,7 +50,8 @@
     return {
       prix: prix || 0, paye: amount(d.paye) || 0, reste: prix === undefined ? 0 : Math.max(0, r2(prix - (amount(d.paye) || 0))),
       cout: cout || 0, coutPaye: amount(d.coutPaye) || 0, doit: cout === undefined ? 0 : Math.max(0, r2(cout - (amount(d.coutPaye) || 0))),
-      benef: prix === undefined ? null : r2(prix - (cout || 0)), hasPrix: prix !== undefined, hasCout: cout !== undefined,
+      // profit only when both prices are written (an empty translator price would show the whole price as profit)
+      benef: prix === undefined || cout === undefined ? null : r2(prix - cout), hasPrix: prix !== undefined, hasCout: cout !== undefined,
     };
   };
   const langs = d => [d.de, d.vers].filter(Boolean).join(' → ');
@@ -61,7 +68,7 @@
   let me = '', rows = [], loaded = false, cur = null, armed = false;
   const now = new Date();
   const ui = {
-    view: ['registre', 'traducteurs', 'bilan'].includes(localStorage.getItem('trad-view')) ? localStorage.getItem('trad-view') : 'registre',
+    view: ['registre', 'traducteurs', 'bilan', 'tarifs'].includes(localStorage.getItem('trad-view')) ? localStorage.getItem('trad-view') : 'registre',
     q: '', etat: '', argent: '', trad: '', period: 'month', month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
   };
 
@@ -76,6 +83,8 @@
         if (!loaded) $('#list').replaceChildren(el('p', { className: 'empty', textContent: error.message }));
         return;
       }
+      const t = data.find(r => r.id === '__tarifs__');
+      if (t?.data?.items) { tarifs = t.data.items; tarifsSaved = true; }
       out.push(...data.filter(r => isDoc(r.id)).map(r => ({ ...r.data, id: r.id })));
       if (data.length < 1000) break;
     }
@@ -89,6 +98,7 @@
     if (channel) return;
     channel = sb.channel('traductions-app').on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, p => {
       const id = p.new?.id || p.old?.id;
+      if (id === '__tarifs__' && p.new?.data?.items) { tarifs = p.new.data.items; tarifsSaved = true; if (ui.view === 'tarifs' && !cur) render(); return; }
       if (!id || !isDoc(id)) return;
       rows = p.eventType === 'DELETE' ? rows.filter(r => r.id !== id) : [...rows.filter(r => r.id !== id), { ...(p.new.data || {}), id }];
       if (!cur) render();
@@ -124,11 +134,12 @@
 
   function render() {
     document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === ui.view));
-    $('#title').textContent = { registre: 'Registre', traducteurs: 'Traducteurs', bilan: 'Bilan' }[ui.view];
+    $('#title').textContent = { registre: 'Registre', traducteurs: 'Traducteurs', bilan: 'Bilan', tarifs: 'Tarifs' }[ui.view];
     $('#add').hidden = ui.view !== 'registre';
     if (!loaded) { $('#sum').replaceChildren(); return $('#list').replaceChildren(el('p', { className: 'empty', textContent: 'Chargement…' })); }
     if (ui.view === 'registre') registre();
     else if (ui.view === 'traducteurs') traducteurs();
+    else if (ui.view === 'tarifs') tarifsView();
     else bilan();
   }
   const totals = list => list.reduce((t, d) => {
@@ -203,6 +214,41 @@
       el('span', { className: 'dc-meta', textContent: `${t.n} document${t.n > 1 ? 's' : ''} · ${t.pages} pages · ${list.filter(d => d.etat === 'traducteur').length} chez lui maintenant` }),
       el('span', { className: 'dc-money' }, el('span', { textContent: `Coût ${money(t.cout)}` }), el('span', { textContent: `payé ${money(t.coutPaye)}` }), el('b', { className: 'ok', textContent: `Bénéfice ${money(t.benef)}` }))))
       : [el('p', { className: 'empty', textContent: 'Aucun document pour l\'instant.' })]));
+  }
+
+  // 💲 Tarifs: our price and the translator's price for each type of document. Typing the type in a document fills both.
+  function tarifsView() {
+    $('#sub').textContent = `${tarifs.length} types de documents`;
+    const withCout = tarifs.filter(t => amount(t.cout) !== undefined).length;
+    $('#sum').replaceChildren(kpi('Types', String(tarifs.length)), kpi('Avec prix traducteur', `${withCout} / ${tarifs.length}`, withCout < tarifs.length ? 'warn' : 'in'),
+      kpi('Enregistré', tarifsSaved ? '✓ oui' : 'pas encore', tarifsSaved ? 'in' : 'warn'));
+    const list = tarifs.map(t => ({ ...t }));
+    const body = el('div', { className: 'tarifs' });
+    const benef = t => { const a = amount(t.prix), b = amount(t.cout); return a === undefined || b === undefined ? '' : money(r2(a - b)); };
+    const draw = () => body.replaceChildren(
+      el('div', { className: 'tf-row tf-head' }, el('span', { textContent: 'Document' }), el('span', { textContent: 'Notre prix' }), el('span', { textContent: 'Prix traducteur' }), el('span', { textContent: 'Bénéfice' }), el('span')),
+      ...list.map((t, i) => {
+        const b = el('b', { className: 'ok', textContent: benef(t) });
+        const f = (k, ph, mode) => { const x = el('input', { value: t[k] ?? '', placeholder: ph, inputMode: mode || 'text', autocomplete: 'off' }); x.oninput = () => { t[k] = x.value; b.textContent = benef(t); }; return x; };
+        return el('div', { className: 'tf-row' }, f('nom', 'Type de document'), f('prix', 'DH', 'decimal'), f('cout', 'DH', 'decimal'), b,
+          el('button', { type: 'button', className: 'tf-del', textContent: '✕', ariaLabel: 'Enlever cette ligne', onclick: () => { list.splice(i, 1); draw(); } }));
+      }));
+    draw();
+    $('#list').replaceChildren(
+      el('p', { className: 'rhint dark', textContent: 'Notre prix = ce que paie le client. Prix traducteur = ce qu\'on paie au traducteur. Dans un document, choisir le type remplit les deux.' }),
+      body,
+      el('button', { type: 'button', className: 'ghost', textContent: '＋ Ajouter un type de document', onclick: () => { list.push({ nom: '', prix: '' }); draw(); body.lastChild.querySelector('input').focus(); } }),
+      el('button', { type: 'button', className: 'primary', textContent: 'Enregistrer les tarifs', onclick: async e => {
+        const items = list.map(t => ({ nom: String(t.nom || '').trim(), prix: amount(t.prix), cout: amount(t.cout) })).filter(t => t.nom)
+          .map(t => JSON.parse(JSON.stringify(t)));
+        e.target.disabled = true;
+        const { error } = await sb.from(TABLE).upsert({ id: '__tarifs__', data: { items, at: Date.now(), by: me }, updated_at: new Date().toISOString(), updated_by: me });
+        e.target.disabled = false;
+        if (error) return toast('Pas enregistré : ' + error.message, true);
+        tarifs = items; tarifsSaved = true;
+        toast('✓ Tarifs enregistrés (pour toute l\'équipe)');
+        tarifsView();
+      } }));
   }
 
   // 📊 Bilan (month or year, by the day the document was added)
@@ -306,13 +352,24 @@
         el('div', { className: 'two' }, lab('Coût du traducteur (DH)', cout), lab('Payé au traducteur (DH)', coutPaye)), all(cout, coutPaye),
         res),
       lab('Notes', el('textarea', { name: 'notes', rows: 2, value: d.notes || '', placeholder: 'Ex : original à rendre…' })),
-      el('datalist', { id: 'dl-types' }, ...TYPES.map(v => el('option', { value: v }))),
+      el('datalist', { id: 'dl-types' }, ...[...new Set([...tarifs.map(t => t.nom), ...TYPES])].map(v => el('option', { value: v }))),
       el('datalist', { id: 'dl-langs' }, ...LANGUES.map(v => el('option', { value: v }))),
       el('datalist', { id: 'dl-trad' }, ...names.map(v => el('option', { value: v }))),
       el('datalist', { id: 'dl-clients' }, ...clients.map(v => el('option', { value: v }))),
       el('div', { className: 'save' }, el('button', { type: 'submit', className: 'primary', textContent: isNew ? 'Ajouter au registre' : 'Enregistrer' }), del),
     ].filter(Boolean));
     sync();
+    // 💲 Choosing a type with a tariff fills our price and the translator's price (empty boxes only)
+    const typeIn = f.elements.type;
+    const fillTarif = () => {
+      const t = tarifOf(typeIn.value.trim());
+      if (!t) return;
+      if (prix.value === '' && amount(t.prix) !== undefined) prix.value = t.prix;
+      if (cout.value === '' && amount(t.cout) !== undefined) cout.value = t.cout;
+      sync();
+    };
+    typeIn.addEventListener('change', fillTarif);
+    typeIn.addEventListener('input', () => { if (tarifOf(typeIn.value.trim())) fillTarif(); });
     etat.onchange = () => { if (etat.value === 'remise' && !f.elements.remise.value) f.elements.remise.value = ymd(); };
     f.onsubmit = e => { e.preventDefault(); save(f); };
     $('#doc').replaceChildren(f);
