@@ -130,7 +130,7 @@ Date et heure actuelles : ${nowText()} (aujourd'hui = ${today()}).
 
 Réponds UNIQUEMENT en JSON : {"heard": "...", "reply": "...", "actions": [...]}
 - heard : si le message contient un vocal, ce que tu as entendu (transcription courte) ; sinon "".
-- reply : réponse courte en darija écrite en arabe (comme un collègue), qui dit ce que tu as compris et ce que tu proposes. Pour une question, réponds directement avec les infos des clients.
+- reply : réponse en darija écrite en arabe (comme un collègue), qui dit ce que tu as compris et ce que tu proposes. Pour une question, la réponse COMPLÈTE est dans reply : toutes les lignes (une par client : N°, nom, date, heure, centre…), séparées par \n. Ne mets jamais la liste dans un autre champ et ne termine jamais reply par «:» sans la liste.
 - actions : les changements à enregistrer (vide si c'est juste une question ou si une info manque : alors demande-la dans reply).
 Types d'actions (n'utilise QUE des ids de la liste des clients ci-dessous ; jamais d'id inventé) :
 1. {"type":"create_client","app":"bls|tls","fields":{...},"attach":"passeport|photo|formulaire|lettre|null"} — nouveau client (ex : photo de passeport). Avant, vérifie qu'il n'existe pas déjà (même passeport ou même nom) : sinon update_client.
@@ -163,6 +163,13 @@ async function ask(who: string, ctx: string, history: any[], content: any[]) {
   const text = j.choices?.[0]?.message?.content || '';
   const m = text.match(/\{[\s\S]*\}/);
   try { return JSON.parse(m ? m[0] : text); } catch { return { reply: text || 'ما فهمتش، عاود من فضلك', actions: [] }; }
+}
+
+/** Anything the model put outside heard / reply / actions (a list…), as text, so nothing is lost. */
+function extras(out: any): string[] {
+  const line = (v: any): string => (v == null ? '' : typeof v !== 'object' ? String(v)
+    : Array.isArray(v) ? v.map(x => '• ' + line(x)).join('\n') : Object.values(v).filter(x => x != null && x !== '').map(line).join(' · '));
+  return Object.entries(out || {}).filter(([k]) => !['heard', 'reply', 'actions'].includes(k)).map(([, v]) => line(v)).filter(Boolean);
 }
 
 // ---------- describe and apply actions ----------
@@ -323,6 +330,7 @@ async function onMessage(m: any) {
   const history = mem.flatMap((x: any) => [{ role: 'user', content: x.u }, { role: 'assistant', content: x.a }]);
 
   const out = await ask(by, ctx, history, content);
+  out.reply = [out.reply, ...extras(out)].filter(Boolean).join('\n');
   const actions = valid(out.actions, data, !!file);
   await aPut(memKey, { h: [...mem, { at: Date.now(), u: (out.heard ? '🎙 ' + out.heard : text || '(fichier)') + (file && file.kind !== 'audio' ? ` [${file.kind}]` : ''), a: JSON.stringify({ reply: out.reply, actions }) }].slice(-6) });
 
