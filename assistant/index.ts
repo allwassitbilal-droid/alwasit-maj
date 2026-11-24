@@ -107,12 +107,13 @@ async function tgFile(fileId: string) {
 }
 
 // ---------- context for the AI ----------
-function clientLine(app: string, c: any) {
+function clientLine(app: string, c: any, masked = false) {
   const r = app === 'bls' ? (c.reserve?.day ? `RDV ${c.reserve.day} ${c.reserve.time || ''}${c.reserve.centre ? ' ' + c.reserve.centre : ''}` : '')
     : (c.rdvDate ? `RDV ${c.rdvDate} ${c.rdvHeure || ''}${c.rdvCentre ? ' ' + c.rdvCentre : ''}` : '');
   const pay = c.prix != null && c.prix !== '' ? `prix ${num(c.prix)} payé ${num(c.paye)}` : '';
-  return [app, c.id, c.num != null && c.num !== '' ? 'N°' + c.num : '', nameOf(c), c.passeport, c.naissance && 'né ' + c.naissance,
-    c.mobile, c.famille && 'famille ' + c.famille + (c.lien ? ' ' + c.lien : ''), c.etape && 'étape ' + c.etape, r, pay,
+  return [app, c.id, c.num != null && c.num !== '' ? 'N°' + c.num : '', nameOf(c),
+    masked ? (c.passeport && 'passeport ✓') : c.passeport, !masked && c.naissance && 'né ' + c.naissance,
+    masked ? (c.mobile && 'tél ✓') : c.mobile, c.famille && 'famille ' + c.famille + (c.lien ? ' ' + c.lien : ''), c.etape && 'étape ' + c.etape, r, pay,
     c.pret && '⭐prêt', c.archive && 'archivé', c.manque && 'manque: ' + c.manque, c.dossier && 'dossier ' + c.dossier]
     .filter(Boolean).join(' | ');
 }
@@ -202,7 +203,7 @@ Si l'activité (bls/tls) n'est pas claire : Espagne/BLS = bls, France/TLS = tls 
 Trouve le client même si le nom est mal écrit ou en arabe. S'il y a plusieurs clients possibles, demande lequel (donne N° et nom) au lieu d'agir.
 8. {"type":"clear_rdv","app":"...","id":"..."} — enlever un rendez-vous enregistré par erreur (seulement si on le demande).
 Présentation des réponses : jamais le format brut de la liste (pas de «bls |», pas de dates AAAA-MM-JJ). Une ligne par client, triée par date : «• الخميس 26/11 مع 09:15 — N°12 Mohammed FAIZ (تطوان)». «Cette semaine / les prochains jours» = à partir d'aujourd'hui ; ne mélange pas les RDV passés avec ceux à venir (si utile, une ligne «فاتو:» à part).
-Ne propose jamais de supprimer un client ou un fichier. Ne mets pas de mot de passe ni de code.
+Ne propose jamais de supprimer un client ou un fichier. Ne mets pas de mot de passe ni de code. «passeport ✓» / «tél ✓» = l'info existe mais est cachée ici : si on la demande, dis de la voir dans le dossier (✎) et ne l'invente jamais.
 
 Rapports : pour «rapport / خلاصة / تقرير», donne un résumé clair par partie : BLS 🇪🇸 et TLS 🇫🇷 (nombre de clients, RDV à venir et aujourd'hui/demain, ⭐ prêts, reste à payer total + qui, dossiers où il manque des documents), 📋 tâches (en retard, aujourd'hui, à venir, faites récemment et par qui), 💵 caisse (ce mois : entrées, sorties, solde, par catégorie et par personne ; comparaison avec le mois d'avant), 📝 traductions (en cours, en retard, prêtes à remettre, reste à encaisser des clients, reste dû aux traducteurs, bénéfice du mois). Si on demande une seule partie, réponds seulement sur elle. Titres courts avec emoji, listes à puces, montants en DH.
 
@@ -218,17 +219,35 @@ ${tasks || '(aucune)'}
 Liste des clients (app | id | N° | nom | passeport | naissance | mobile | famille | étape | RDV | paiement | …) :
 ${ctx}`;
 
-async function ask(who: string, ctx: string, tasks: string, caisse: string, trad: string, history: any[], content: any[]) {
-  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+// Text only (no file) and a GEMINI_KEY: Google's free tier, with passports / phones / birth dates hidden.
+// Documents, or when the free tier says no (quota…): OpenRouter (paid, data not used for training).
+const FREE_MODEL = () => env('GEMINI_MODEL') || 'gemini-2.5-flash';
+async function callAI(free: boolean, messages: any[]) {
+  const url = free ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
+  const body: any = free
+    ? { model: FREE_MODEL(), temperature: 0.1, response_format: { type: 'json_object' }, max_tokens: 12000, reasoning_effort: 'low', messages }
+    : { model: MODEL, temperature: 0.1, response_format: { type: 'json_object' }, max_tokens: 12000, reasoning: { effort: 'low' }, messages };
+  const r = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${env('OPENROUTER_KEY')}`, 'Content-Type': 'application/json', 'X-Title': 'Al Wasit assistant' },
-    body: JSON.stringify({
-      model: MODEL, temperature: 0.1, response_format: { type: 'json_object' }, max_tokens: 12000, reasoning: { effort: 'low' },
-      messages: [{ role: 'system', content: SYSTEM(who, ctx, tasks, caisse, trad) }, ...history, { role: 'user', content }],
-    }),
+    headers: { Authorization: `Bearer ${free ? env('GEMINI_KEY') : env('OPENROUTER_KEY')}`, 'Content-Type': 'application/json', ...(free ? {} : { 'X-Title': 'Al Wasit assistant' }) },
+    body: JSON.stringify(body),
   });
-  const j = await r.json();
-  if (!r.ok || j.error) throw new Error('IA : ' + (j.error?.message || r.status));
+  const j = await r.json().catch(() => ({}));
+  const jj = Array.isArray(j) ? j[0] : j;
+  if (!r.ok || jj?.error) throw new Error('IA ' + (free ? 'Gemini' : 'OpenRouter') + ' : ' + (jj?.error?.message || r.status));
+  return jj;
+}
+
+async function ask(who: string, ctx: string, tasks: string, caisse: string, trad: string, history: any[], content: any[], freeCtx = '') {
+  const hasFile = content.some((c: any) => c.type !== 'text');
+  const tryFree = !!env('GEMINI_KEY') && !hasFile && !!freeCtx;
+  const msgs = (c: string) => [{ role: 'system', content: SYSTEM(who, c, tasks, caisse, trad) }, ...history, { role: 'user', content }];
+  let j: any = null;
+  if (tryFree) {
+    try { j = await callAI(true, msgs(freeCtx)); console.log('IA gratuite ✓'); }
+    catch (e) { console.log('IA gratuite ✗', (e as Error).message); }
+  }
+  j ||= await callAI(false, msgs(ctx));
   const choice = j.choices?.[0] || {};
   const text = choice.message?.content || '';
   console.log('IA', choice.finish_reason, JSON.stringify(j.usage || {}), text.slice(0, 3000));
@@ -458,13 +477,14 @@ async function onMessage(m: any) {
   const mem = ((await aGet(memKey)) || { h: [] }).h.filter((x: any) => Date.now() - x.at < 2 * 3600_000);
   const history = mem.flatMap((x: any) => [{ role: 'user', content: x.u }, { role: 'assistant', content: x.a }]);
 
-  const out = await ask(by, ctx, taskLines(data).join('\n'), caisseText(data.caisse), tradText(data.trad), history, content);
+  const freeCtx = [...data.bls.clients.map(c => clientLine('bls', c, true)), ...data.tls.clients.map(c => clientLine('tls', c, true))].join('\n');
+  const out = await ask(by, ctx, taskLines(data).join('\n'), caisseText(data.caisse), tradText(data.trad), history, content, freeCtx);
   out.reply = [out.reply, ...extras(out)].filter(Boolean).join('\n');
   // Only a heading («ها هو التقرير:») and nothing under it: ask once more for the whole text.
   if (!(out.actions || []).length && /[:：]\s*$/.test(out.reply || '') && (out.reply || '').length < 160) {
     const again = await ask(by, ctx, taskLines(data).join('\n'), caisseText(data.caisse), tradText(data.trad),
       [...history, { role: 'user', content }, { role: 'assistant', content: JSON.stringify(out) }],
-      [{ type: 'text', text: 'Ta réponse s\'arrête après le titre. Réécris la réponse COMPLÈTE dans "reply" (texte avec \\n, pas d\'objet), actions vides.' }]);
+      [{ type: 'text', text: 'Ta réponse s\'arrête après le titre. Réécris la réponse COMPLÈTE dans "reply" (texte avec \\n, pas d\'objet), actions vides.' }], freeCtx);
     out.reply = [again.reply, ...extras(again)].filter(Boolean).join('\n') || out.reply;
   }
   const actions = valid(out.actions, data, !!file);
@@ -518,7 +538,7 @@ Deno.serve(async req => {
     const r = await tg('setWebhook', { url: hook, secret_token: await hookToken(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true });
     await tg('setMyCommands', { commands: [{ command: 'aide', description: 'Comment ça marche' }, { command: 'nom', description: 'Changer mon nom' }] });
     const t = await getRow(A, 'users').then(() => '✓ table assistant OK', e => '✗ table assistant : ' + e.message);
-    return new Response(`${r.ok ? '✅ Webhook installé' : '❌ ' + r.description}\n${t}\nModèle : ${MODEL}`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new Response(`${r.ok ? '✅ Webhook installé' : '❌ ' + r.description}\n${t}\nModèle : ${MODEL}\nGratuit (texte) : ${env('GEMINI_KEY') ? '✓ ' + FREE_MODEL() : '— (pas de GEMINI_KEY)'}`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
   if (!SECRET() || req.headers.get('X-Telegram-Bot-Api-Secret-Token') !== await hookToken()) return new Response('forbidden', { status: 403 });
   const update = await req.json().catch(() => null);
