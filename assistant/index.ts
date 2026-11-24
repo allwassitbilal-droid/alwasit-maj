@@ -117,13 +117,29 @@ function clientLine(app: string, c: any) {
     .filter(Boolean).join(' | ');
 }
 
+/** Written tasks of both apps (À faire), deleted ones left out: one line each, with their id. */
+function taskLines(data: any) {
+  const out: string[] = [];
+  for (const app of ['bls', 'tls']) {
+    const byId = new Map(data[app].clients.map((c: any) => [c.id, c]));
+    for (const t of data[app].team.tasks || []) {
+      if (!t?.id || t.deleted || String(t.id).startsWith('auto:') || !t.text) continue;
+      const c: any = t.clientId && byId.get(t.clientId);
+      const added = t.cree ? new Date(t.cree).toISOString().slice(0, 10) : '';
+      out.push([app, t.id, t.day || '', t.done ? `FAITE${t.doneBy ? ' par ' + t.doneBy : ''}` : (t.day && t.day < today() ? 'EN RETARD' : 'à faire'),
+        t.text, c && 'client ' + nameOf(c), t.by && 'par ' + t.by, added && 'ajoutée ' + added].filter(Boolean).join(' | '));
+    }
+  }
+  return out;
+}
+
 async function loadAll() {
   const [bls, tls] = await Promise.all([allRows(APPS.bls.table), allRows(APPS.tls.table)]);
   const split = (rows: any[]) => ({ team: rows.find(r => r.id === TEAM)?.data || {}, clients: rows.filter(r => r.id !== TEAM && r.data).map(r => ({ ...r.data, id: r.id })) });
   return { bls: split(bls), tls: split(tls) };
 }
 
-const SYSTEM = (who: string, ctx: string) => `Tu es l'assistant de l'agence de visas «Al Wasit» (Maroc). Tu parles avec ${who}, un membre de l'équipe.
+const SYSTEM = (who: string, ctx: string, tasks: string) => `Tu es l'assistant de l'agence de visas «Al Wasit» (Maroc). Tu parles avec ${who}, un membre de l'équipe.
 Il t'envoie des messages en darija (arabe ou latin), français, des vocaux, des photos (passeport, CIN, reçu…) ou des PDF (lettre de rendez-vous BLS/TLS…).
 Deux activités : «bls» = visas Espagne (BLS), «tls» = visas France (TLS). Une famille partage le même champ «famille».
 Date et heure actuelles : ${nowText()} (aujourd'hui = ${today()}).
@@ -138,6 +154,7 @@ Types d'actions (n'utilise QUE des ids de la liste des clients ci-dessous ; jama
 3. {"type":"set_rdv","app":"...","id":"...","day":"YYYY-MM-DD","time":"HH:MM","centre":"Tétouan","ref":"TTU-123456-26"} — rendez-vous (lettre BLS : la date du RDV est la plage horaire «2026-11-23 08:50-09:10», pas la date de paiement).
 4. {"type":"add_payment","app":"...","id":"...","montant":500,"caisse":false,"mode":"especes|virement|carte|cheque"} — le client a payé (ajouté à «paye»). caisse=true seulement si on demande aussi de l'écrire dans la caisse.
 5. {"type":"add_task","app":"...","text":"...","day":"YYYY-MM-DD","id":"id client ou null"} — tâche «À faire».
+5b. {"type":"task_done","app":"...","task":"id de la tâche","done":true} — cocher (ou décocher avec false) une tâche de la liste des tâches.
 6. {"type":"attach_file","app":"...","id":"...","slot":"passeport|photo|formulaire|lettre"} — ranger le fichier reçu dans le dossier («lettre» seulement pour bls).
 7. {"type":"caisse","sens":"in|out","cat":"${[...CAISSE_IN, ...CAISSE_OUT].join('|')}","montant":0,"date":"YYYY-MM-DD","mode":"especes","client":"nom ou vide","note":"..."} — opération de caisse demandée explicitement.
 Champs possibles (fields) : ${FIELDS.join(', ')}. Dates en YYYY-MM-DD. Noms en MAJUSCULES comme sur le passeport (prenom, nom). tls «etape» : nouveau|docs|manque|complet|rdv. pret = true/false (⭐ prêt pour réserver).
@@ -148,16 +165,21 @@ Trouve le client même si le nom est mal écrit ou en arabe. S'il y a plusieurs 
 Présentation des réponses : jamais le format brut de la liste (pas de «bls |», pas de dates AAAA-MM-JJ). Une ligne par client, triée par date : «• الخميس 26/11 مع 09:15 — N°12 Mohammed FAIZ (تطوان)». «Cette semaine / les prochains jours» = à partir d'aujourd'hui ; ne mélange pas les RDV passés avec ceux à venir (si utile, une ligne «فاتو:» à part).
 Ne propose jamais de supprimer un client ou un fichier. Ne mets pas de mot de passe ni de code.
 
+Rapports : pour «rapport / خلاصة / تقرير», donne un résumé clair par activité (BLS 🇪🇸, TLS 🇫🇷) : nombre de clients, RDV à venir (et aujourd'hui/demain), ⭐ prêts, reste à payer (total + qui), dossiers où il manque des documents, et les tâches : en retard, aujourd'hui, à venir, faites récemment (avec qui les a faites). Titres courts avec emoji, listes à puces.
+
+Tâches «À faire» (app | id tâche | jour | état | texte | client | ajoutée par | date d'ajout) :
+${tasks || '(aucune)'}
+
 Liste des clients (app | id | N° | nom | passeport | naissance | mobile | famille | étape | RDV | paiement | …) :
 ${ctx}`;
 
-async function ask(who: string, ctx: string, history: any[], content: any[]) {
+async function ask(who: string, ctx: string, tasks: string, history: any[], content: any[]) {
   const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env('OPENROUTER_KEY')}`, 'Content-Type': 'application/json', 'X-Title': 'Al Wasit assistant' },
     body: JSON.stringify({
       model: MODEL, temperature: 0.1, response_format: { type: 'json_object' },
-      messages: [{ role: 'system', content: SYSTEM(who, ctx) }, ...history, { role: 'user', content }],
+      messages: [{ role: 'system', content: SYSTEM(who, ctx, tasks) }, ...history, { role: 'user', content }],
     }),
   });
   const j = await r.json();
@@ -188,6 +210,10 @@ function describe(a: any, data: any) {
     case 'set_rdv': return `🗓 موعد ${ap} — ${who}: ${fr(a.day)} ${a.time || ''}${a.centre ? ' · ' + a.centre : ''}${a.ref ? ' · ' + a.ref : ''}`;
     case 'add_payment': return `💰 ${who} خلص ${num(a.montant)} DH${c ? ` (كان خالص ${num(c.paye)}${c.prix ? ' من ' + num(c.prix) : ''})` : ''}${a.caisse ? ' + فالكاسة' : ''}`;
     case 'add_task': return `📋 مهمة ${fr(a.day || today())}: ${a.text}${who ? ' — ' + who : ''}`;
+    case 'task_done': {
+      const t = (data[a.app]?.team.tasks || []).find((x: any) => x.id === a.task);
+      return `${a.done === false ? '↩️ نرجعو للمهام' : '☑️ مهمة دارت'}: ${t?.text || a.task}`;
+    }
     case 'attach_file': return `📎 الوثيقة ← ${who} (${a.slot})`;
     case 'clear_rdv': return `🗑 نحيد الموعد ديال ${who} (${ap})`;
     case 'caisse': return `💵 كاسة ${a.sens === 'out' ? 'خروج −' : 'دخول +'}${num(a.montant)} DH · ${a.cat}${a.client ? ' · ' + a.client : ''}${a.note ? ' · ' + a.note : ''}`;
@@ -203,6 +229,7 @@ function valid(actions: any[], data: any, hasFile: boolean) {
     if (!APPS[a.app]) return false;
     if (a.type === 'create_client') { if (!hasFile) a.attach = null; return !!(a.fields?.nom || a.fields?.prenom); }
     if (a.type === 'add_task') return !!a.text && (!a.id || !!find(data, a.app, a.id));
+    if (a.type === 'task_done') return (data[a.app].team.tasks || []).some((t: any) => t.id === a.task && !t.deleted);
     if (!find(data, a.app, a.id)) return false;
     if (a.type === 'attach_file') return hasFile && APPS[a.app].slots.includes(a.slot);
     if (a.type === 'set_rdv') return /^\d{4}-\d{2}-\d{2}$/.test(a.day || '');
@@ -249,6 +276,14 @@ async function apply(p: any) {
         const t = { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), cree: Date.now(), at: Date.now(), text: a.text, day: a.day || today(), clientId: a.id || undefined, by };
         await putRow(T, TEAM, { ...team, tasks: [...(team.tasks || []), t] }, by);
         done.push(`✅ المهمة تزادت (${fr(t.day)})`);
+        continue;
+      }
+      if (a.type === 'task_done') {
+        const team = (await getRow(T, TEAM)) || {};
+        const isDone = a.done !== false;
+        const tasks = (team.tasks || []).map((t: any) => (t.id === a.task ? { ...t, done: isDone, doneBy: isDone ? by : undefined, at: Date.now() } : t));
+        await putRow(T, TEAM, { ...team, tasks }, by);
+        done.push(isDone ? '✅ المهمة تعلمات «دارت»' : '✅ المهمة رجعات «باقي»');
         continue;
       }
       const c = await getRow(T, a.id);
@@ -342,7 +377,7 @@ async function onMessage(m: any) {
   const mem = ((await aGet(memKey)) || { h: [] }).h.filter((x: any) => Date.now() - x.at < 2 * 3600_000);
   const history = mem.flatMap((x: any) => [{ role: 'user', content: x.u }, { role: 'assistant', content: x.a }]);
 
-  const out = await ask(by, ctx, history, content);
+  const out = await ask(by, ctx, taskLines(data).join('\n'), history, content);
   out.reply = [out.reply, ...extras(out)].filter(Boolean).join('\n');
   const actions = valid(out.actions, data, !!file);
   await aPut(memKey, { h: [...mem, { at: Date.now(), u: (out.heard ? '🎙 ' + out.heard : text || '(fichier)') + (file && file.kind !== 'audio' ? ` [${file.kind}]` : ''), a: JSON.stringify({ reply: out.reply, actions }) }].slice(-6) });
