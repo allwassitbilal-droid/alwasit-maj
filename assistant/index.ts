@@ -134,12 +134,49 @@ function taskLines(data: any) {
 }
 
 async function loadAll() {
-  const [bls, tls] = await Promise.all([allRows(APPS.bls.table), allRows(APPS.tls.table)]);
+  const [bls, tls, caisse, trad] = await Promise.all([allRows(APPS.bls.table), allRows(APPS.tls.table),
+    allRows('caisse').catch(() => []), allRows('traductions').catch(() => [])]);
   const split = (rows: any[]) => ({ team: rows.find(r => r.id === TEAM)?.data || {}, clients: rows.filter(r => r.id !== TEAM && r.data).map(r => ({ ...r.data, id: r.id })) });
-  return { bls: split(bls), tls: split(tls) };
+  return {
+    bls: split(bls), tls: split(tls),
+    caisse: caisse.filter(r => r.data && !String(r.id).startsWith('__')).map(r => ({ ...r.data, id: r.id })),
+    trad: trad.filter(r => r.data && !String(r.id).startsWith('__')).map(r => ({ ...r.data, id: r.id })),
+  };
 }
 
-const SYSTEM = (who: string, ctx: string, tasks: string) => `Tu es l'assistant de l'agence de visas «Al Wasit» (Maroc). Tu parles avec ${who}, un membre de l'équipe.
+/** Caisse: totals of the last 6 months, then every operation of this month and the last one. */
+function caisseText(ops: any[]) {
+  const t = today(), month = t.slice(0, 7);
+  const prev = (() => { const [y, m] = month.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; })();
+  const months = new Map<string, { in: number; out: number }>();
+  for (const o of ops) {
+    const k = String(o.date || '').slice(0, 7);
+    if (!k) continue;
+    const x = months.get(k) || { in: 0, out: 0 };
+    x[o.sens === 'out' ? 'out' : 'in'] += num(o.montant);
+    months.set(k, x);
+  }
+  const tot = [...months.entries()].sort().slice(-6).map(([k, x]) => `${k} : entrées ${x.in} DH, sorties ${x.out} DH, solde ${x.in - x.out} DH`);
+  const lines = ops.filter(o => [month, prev].includes(String(o.date || '').slice(0, 7)))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-300)
+    .map(o => [o.date, o.sens === 'out' ? 'SORTIE' : 'ENTRÉE', o.cat, num(o.montant) + ' DH', o.mode, o.client, o.note, o.par && 'par ' + o.par].filter(Boolean).join(' | '));
+  return `Totaux par mois :\n${tot.join('\n') || '(rien)'}\nOpérations de ${prev} et ${month} (date | sens | catégorie | montant | mode | client | note | écrit par) :\n${lines.join('\n') || '(aucune)'}`;
+}
+
+/** Traductions: one line per document (the 300 most recent). */
+function tradText(docs: any[]) {
+  const t = today();
+  return docs.sort((a, b) => (a.cree || 0) - (b.cree || 0)).slice(-300).map(d => {
+    const prix = num(d.prix), paye = num(d.paye), cout = num(d.cout), cp = num(d.coutPaye);
+    return [d.id, d.num, d.type, d.client, d.tel, (d.de || d.vers) && `${d.de || '?'}→${d.vers || '?'}`, d.pages && d.pages + ' p',
+      'état ' + (d.etat || '?') + (d.livraison && d.etat !== 'remise' && d.livraison < t ? ' EN RETARD' : ''), d.traducteur && 'traducteur ' + d.traducteur,
+      d.envoi && 'envoyé ' + d.envoi, d.livraison && 'prévu ' + d.livraison, d.remise && 'remis ' + d.remise,
+      d.prix !== undefined && d.prix !== '' && `prix ${prix} payé ${paye}`, d.cout !== undefined && d.cout !== '' && `coût ${cout} payé au traducteur ${cp}`,
+      d.notes].filter(Boolean).join(' | ');
+  }).join('\n');
+}
+
+const SYSTEM = (who: string, ctx: string, tasks: string, caisse: string, trad: string) => `Tu es l'assistant de l'agence de visas «Al Wasit» (Maroc). Tu parles avec ${who}, un membre de l'équipe.
 Il t'envoie des messages en darija (arabe ou latin), français, des vocaux, des photos (passeport, CIN, reçu…) ou des PDF (lettre de rendez-vous BLS/TLS…).
 Deux activités : «bls» = visas Espagne (BLS), «tls» = visas France (TLS). Une famille partage le même champ «famille».
 Date et heure actuelles : ${nowText()} (aujourd'hui = ${today()}).
@@ -154,6 +191,8 @@ Types d'actions (n'utilise QUE des ids de la liste des clients ci-dessous ; jama
 3. {"type":"set_rdv","app":"...","id":"...","day":"YYYY-MM-DD","time":"HH:MM","centre":"Tétouan","ref":"TTU-123456-26"} — rendez-vous (lettre BLS : la date du RDV est la plage horaire «2026-11-23 08:50-09:10», pas la date de paiement).
 4. {"type":"add_payment","app":"...","id":"...","montant":500,"caisse":false,"mode":"especes|virement|carte|cheque"} — le client a payé (ajouté à «paye»). caisse=true seulement si on demande aussi de l'écrire dans la caisse.
 5. {"type":"add_task","app":"...","text":"...","day":"YYYY-MM-DD","id":"id client ou null"} — tâche «À faire».
+5c. {"type":"trad_add","fields":{"type":"...","client":"...","tel":"","de":"ar","vers":"fr","pages":1,"traducteur":"","envoi":"YYYY-MM-DD","livraison":"YYYY-MM-DD","etat":"traducteur|bureau|prete|remise","prix":0,"paye":0,"cout":0,"coutPaye":0,"notes":""}} — nouveau document à traduire (registre 📝 Traductions).
+5d. {"type":"trad_update","id":"id du document","fields":{...mêmes champs, ex : etat, remise, paye, coutPaye}} — ex : «la traduction de X est prête / remise / payée».
 5b. {"type":"task_done","app":"...","task":"id de la tâche","done":true} — cocher (ou décocher avec false) une tâche de la liste des tâches.
 6. {"type":"attach_file","app":"...","id":"...","slot":"passeport|photo|formulaire|lettre"} — ranger le fichier reçu dans le dossier («lettre» seulement pour bls).
 7. {"type":"caisse","sens":"in|out","cat":"${[...CAISSE_IN, ...CAISSE_OUT].join('|')}","montant":0,"date":"YYYY-MM-DD","mode":"especes","client":"nom ou vide","note":"..."} — opération de caisse demandée explicitement.
@@ -165,7 +204,13 @@ Trouve le client même si le nom est mal écrit ou en arabe. S'il y a plusieurs 
 Présentation des réponses : jamais le format brut de la liste (pas de «bls |», pas de dates AAAA-MM-JJ). Une ligne par client, triée par date : «• الخميس 26/11 مع 09:15 — N°12 Mohammed FAIZ (تطوان)». «Cette semaine / les prochains jours» = à partir d'aujourd'hui ; ne mélange pas les RDV passés avec ceux à venir (si utile, une ligne «فاتو:» à part).
 Ne propose jamais de supprimer un client ou un fichier. Ne mets pas de mot de passe ni de code.
 
-Rapports : pour «rapport / خلاصة / تقرير», donne un résumé clair par activité (BLS 🇪🇸, TLS 🇫🇷) : nombre de clients, RDV à venir (et aujourd'hui/demain), ⭐ prêts, reste à payer (total + qui), dossiers où il manque des documents, et les tâches : en retard, aujourd'hui, à venir, faites récemment (avec qui les a faites). Titres courts avec emoji, listes à puces.
+Rapports : pour «rapport / خلاصة / تقرير», donne un résumé clair par partie : BLS 🇪🇸 et TLS 🇫🇷 (nombre de clients, RDV à venir et aujourd'hui/demain, ⭐ prêts, reste à payer total + qui, dossiers où il manque des documents), 📋 tâches (en retard, aujourd'hui, à venir, faites récemment et par qui), 💵 caisse (ce mois : entrées, sorties, solde, par catégorie et par personne ; comparaison avec le mois d'avant), 📝 traductions (en cours, en retard, prêtes à remettre, reste à encaisser des clients, reste dû aux traducteurs, bénéfice du mois). Si on demande une seule partie, réponds seulement sur elle. Titres courts avec emoji, listes à puces, montants en DH.
+
+💵 Caisse :
+${caisse}
+
+📝 Traductions (id | N° | type | client | tél | langues | pages | état | traducteur | dates | prix/payé | coût/payé | notes) :
+${trad || '(aucune)'}
 
 Tâches «À faire» (app | id tâche | jour | état | texte | client | ajoutée par | date d'ajout) :
 ${tasks || '(aucune)'}
@@ -173,13 +218,13 @@ ${tasks || '(aucune)'}
 Liste des clients (app | id | N° | nom | passeport | naissance | mobile | famille | étape | RDV | paiement | …) :
 ${ctx}`;
 
-async function ask(who: string, ctx: string, tasks: string, history: any[], content: any[]) {
+async function ask(who: string, ctx: string, tasks: string, caisse: string, trad: string, history: any[], content: any[]) {
   const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env('OPENROUTER_KEY')}`, 'Content-Type': 'application/json', 'X-Title': 'Al Wasit assistant' },
     body: JSON.stringify({
       model: MODEL, temperature: 0.1, response_format: { type: 'json_object' },
-      messages: [{ role: 'system', content: SYSTEM(who, ctx, tasks) }, ...history, { role: 'user', content }],
+      messages: [{ role: 'system', content: SYSTEM(who, ctx, tasks, caisse, trad) }, ...history, { role: 'user', content }],
     }),
   });
   const j = await r.json();
@@ -215,6 +260,11 @@ function describe(a: any, data: any) {
       return `${a.done === false ? '↩️ نرجعو للمهام' : '☑️ مهمة دارت'}: ${t?.text || a.task}`;
     }
     case 'attach_file': return `📎 الوثيقة ← ${who} (${a.slot})`;
+    case 'trad_add': return `📝 ترجمة جديدة: ${a.fields?.type || ''} — ${a.fields?.client || ''}\n   ${Object.entries(a.fields || {}).filter(([k, v]) => v !== '' && v != null && !['type', 'client'].includes(k)).map(([k, v]) => `${k}: ${v}`).join('، ')}`;
+    case 'trad_update': {
+      const d = data.trad.find((x: any) => x.id === a.id);
+      return `📝 ${d?.num || ''} ${d?.type || ''} — ${d?.client || ''}: ${Object.entries(a.fields || {}).map(([k, v]) => `${k}: ${v}`).join('، ')}`;
+    }
     case 'clear_rdv': return `🗑 نحيد الموعد ديال ${who} (${ap})`;
     case 'caisse': return `💵 كاسة ${a.sens === 'out' ? 'خروج −' : 'دخول +'}${num(a.montant)} DH · ${a.cat}${a.client ? ' · ' + a.client : ''}${a.note ? ' · ' + a.note : ''}`;
     default: return '';
@@ -226,6 +276,8 @@ function valid(actions: any[], data: any, hasFile: boolean) {
   return (Array.isArray(actions) ? actions : []).filter(a => {
     if (!a || typeof a !== 'object') return false;
     if (a.type === 'caisse') return num(a.montant) > 0;
+    if (a.type === 'trad_add') return !!(a.fields?.client || a.fields?.type);
+    if (a.type === 'trad_update') return data.trad.some((d: any) => d.id === a.id) && a.fields && typeof a.fields === 'object';
     if (!APPS[a.app]) return false;
     if (a.type === 'create_client') { if (!hasFile) a.attach = null; return !!(a.fields?.nom || a.fields?.prenom); }
     if (a.type === 'add_task') return !!a.text && (!a.id || !!find(data, a.app, a.id));
@@ -269,6 +321,23 @@ async function apply(p: any) {
           date: a.date || today(), mode: a.mode || 'especes', client: a.client || '', note: a.note || '', par: by, cree: Date.now(), by };
         await putRow('caisse', id, op, by);
         done.push(`✅ الكاسة: ${op.sens === 'in' ? '+' : '−'}${op.montant} DH`);
+        continue;
+      }
+      if (a.type === 'trad_add' || a.type === 'trad_update') {
+        const keep = (f: any) => Object.fromEntries(Object.entries(f || {}).filter(([k, v]) => ['type', 'client', 'tel', 'de', 'vers', 'pages', 'traducteur', 'envoi', 'livraison', 'remise', 'etat', 'prix', 'paye', 'cout', 'coutPaye', 'notes'].includes(k) && v !== null && v !== undefined && v !== ''));
+        if (a.type === 'trad_add') {
+          const id = crypto.randomUUID(), year = today().slice(0, 4);
+          const docs = (await allRows('traductions')).map(r => r.data || {});
+          const max = docs.reduce((m: number, d: any) => { const x = /^T-(\d{4})-(\d+)$/.exec(d.num || ''); return x && x[1] === year ? Math.max(m, +x[2]) : m; }, 0);
+          const doc = { etat: 'traducteur', ...keep(a.fields), id, num: `T-${year}-${String(max + 1).padStart(4, '0')}`, cree: Date.now(), by };
+          await putRow('traductions', id, doc, by);
+          done.push(`✅ الترجمة تزادت (${doc.num})`);
+        } else {
+          const d = await getRow('traductions', a.id);
+          if (!d) { done.push('⚠️ الوثيقة ما بقاتش'); continue; }
+          await putRow('traductions', a.id, { ...d, ...keep(a.fields) }, by);
+          done.push(`✅ ${d.num || 'الترجمة'} تبدلات`);
+        }
         continue;
       }
       if (a.type === 'add_task') {
@@ -377,7 +446,7 @@ async function onMessage(m: any) {
   const mem = ((await aGet(memKey)) || { h: [] }).h.filter((x: any) => Date.now() - x.at < 2 * 3600_000);
   const history = mem.flatMap((x: any) => [{ role: 'user', content: x.u }, { role: 'assistant', content: x.a }]);
 
-  const out = await ask(by, ctx, taskLines(data).join('\n'), history, content);
+  const out = await ask(by, ctx, taskLines(data).join('\n'), caisseText(data.caisse), tradText(data.trad), history, content);
   out.reply = [out.reply, ...extras(out)].filter(Boolean).join('\n');
   const actions = valid(out.actions, data, !!file);
   await aPut(memKey, { h: [...mem, { at: Date.now(), u: (out.heard ? '🎙 ' + out.heard : text || '(fichier)') + (file && file.kind !== 'audio' ? ` [${file.kind}]` : ''), a: JSON.stringify({ reply: out.reply, actions }) }].slice(-6) });
