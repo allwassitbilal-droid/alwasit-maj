@@ -12,6 +12,12 @@ const SB = env('SUPABASE_URL');
 const SK = env('SUPABASE_SERVICE_ROLE_KEY');
 const MODEL = env('AI_MODEL') || 'google/gemini-2.5-flash';
 const TZ = 'Africa/Casablanca';
+// WEBHOOK_SECRET may hold any characters (or a stray space / new line): Telegram gets its SHA-256 (hex only).
+const SECRET = () => env('WEBHOOK_SECRET').trim();
+async function hookToken() {
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('alwasit:' + SECRET()));
+  return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 const APPS: Record<string, { table: string; bucket: string; slots: string[]; label: string }> = {
   bls: { table: 'clients', bucket: 'fichiers', slots: ['formulaire', 'photo', 'passeport', 'lettre'], label: 'BLS 🇪🇸' },
@@ -359,16 +365,18 @@ Deno.serve(async req => {
   const url = new URL(req.url);
   // One-time setup from the phone: open …/functions/v1/assistant?setup=<WEBHOOK_SECRET>
   if (req.method === 'GET') {
-    if (url.searchParams.get('setup') !== env('WEBHOOK_SECRET') || !env('WEBHOOK_SECRET')) return new Response('Al Wasit assistant ✓', { status: 200 });
+    const given = (url.searchParams.get('setup') || '').trim();
+    if (!given) return new Response('Al Wasit assistant ✓', { status: 200 });
+    if (given !== SECRET()) return new Response('⚠️ setup= ne correspond pas à WEBHOOK_SECRET (' + given.length + ' / ' + SECRET().length + ' caractères)', { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     const missing = ['TELEGRAM_TOKEN', 'OPENROUTER_KEY', 'JOIN_CODE', 'WEBHOOK_SECRET'].filter(k => !env(k));
     if (missing.length) return new Response('Secrets manquants : ' + missing.join(', '), { status: 200 });
     const hook = `${SB}/functions/v1/assistant`;
-    const r = await tg('setWebhook', { url: hook, secret_token: env('WEBHOOK_SECRET'), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true });
+    const r = await tg('setWebhook', { url: hook, secret_token: await hookToken(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true });
     await tg('setMyCommands', { commands: [{ command: 'aide', description: 'Comment ça marche' }, { command: 'nom', description: 'Changer mon nom' }] });
     const t = await getRow(A, 'users').then(() => '✓ table assistant OK', e => '✗ table assistant : ' + e.message);
     return new Response(`${r.ok ? '✅ Webhook installé' : '❌ ' + r.description}\n${t}\nModèle : ${MODEL}`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
-  if (req.headers.get('X-Telegram-Bot-Api-Secret-Token') !== env('WEBHOOK_SECRET')) return new Response('forbidden', { status: 403 });
+  if (!SECRET() || req.headers.get('X-Telegram-Bot-Api-Secret-Token') !== await hookToken()) return new Response('forbidden', { status: 403 });
   const update = await req.json().catch(() => null);
   if (update) {
     const job = handle(update);
