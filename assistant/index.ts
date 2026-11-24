@@ -223,15 +223,27 @@ async function ask(who: string, ctx: string, tasks: string, caisse: string, trad
     method: 'POST',
     headers: { Authorization: `Bearer ${env('OPENROUTER_KEY')}`, 'Content-Type': 'application/json', 'X-Title': 'Al Wasit assistant' },
     body: JSON.stringify({
-      model: MODEL, temperature: 0.1, response_format: { type: 'json_object' },
+      model: MODEL, temperature: 0.1, response_format: { type: 'json_object' }, max_tokens: 12000, reasoning: { effort: 'low' },
       messages: [{ role: 'system', content: SYSTEM(who, ctx, tasks, caisse, trad) }, ...history, { role: 'user', content }],
     }),
   });
   const j = await r.json();
   if (!r.ok || j.error) throw new Error('IA : ' + (j.error?.message || r.status));
-  const text = j.choices?.[0]?.message?.content || '';
+  const choice = j.choices?.[0] || {};
+  const text = choice.message?.content || '';
+  console.log('IA', choice.finish_reason, JSON.stringify(j.usage || {}), text.slice(0, 3000));
+  const out = parseOut(text);
+  if (choice.finish_reason === 'length') out.reply = (out.reply || '') + '\n\n✂️ الجواب طويل بزاف، سولني على جزء بوحدو.';
+  return out;
+}
+
+/** The model's JSON; if it is cut or broken, at least the text of «reply». */
+function parseOut(text: string): any {
   const m = text.match(/\{[\s\S]*\}/);
-  try { return JSON.parse(m ? m[0] : text); } catch { return { reply: text || 'ما فهمتش، عاود من فضلك', actions: [] }; }
+  try { return JSON.parse(m ? m[0] : text); } catch { /* below */ }
+  const r = text.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)/);
+  if (r) { try { return { reply: JSON.parse('"' + r[1] + '"'), actions: [] }; } catch { return { reply: r[1].replace(/\\n/g, '\n'), actions: [] }; } }
+  return { reply: text.replace(/^[\s{]*/, '') || 'ما فهمتش، عاود من فضلك', actions: [] };
 }
 
 /** Anything the model put outside heard / reply / actions (a list…), as text, so nothing is lost. */
@@ -448,6 +460,13 @@ async function onMessage(m: any) {
 
   const out = await ask(by, ctx, taskLines(data).join('\n'), caisseText(data.caisse), tradText(data.trad), history, content);
   out.reply = [out.reply, ...extras(out)].filter(Boolean).join('\n');
+  // Only a heading («ها هو التقرير:») and nothing under it: ask once more for the whole text.
+  if (!(out.actions || []).length && /[:：]\s*$/.test(out.reply || '') && (out.reply || '').length < 160) {
+    const again = await ask(by, ctx, taskLines(data).join('\n'), caisseText(data.caisse), tradText(data.trad),
+      [...history, { role: 'user', content }, { role: 'assistant', content: JSON.stringify(out) }],
+      [{ type: 'text', text: 'Ta réponse s\'arrête après le titre. Réécris la réponse COMPLÈTE dans "reply" (texte avec \\n, pas d\'objet), actions vides.' }]);
+    out.reply = [again.reply, ...extras(again)].filter(Boolean).join('\n') || out.reply;
+  }
   const actions = valid(out.actions, data, !!file);
   await aPut(memKey, { h: [...mem, { at: Date.now(), u: (out.heard ? '🎙 ' + out.heard : text || '(fichier)') + (file && file.kind !== 'audio' ? ` [${file.kind}]` : ''), a: JSON.stringify({ reply: out.reply, actions }) }].slice(-6) });
 
