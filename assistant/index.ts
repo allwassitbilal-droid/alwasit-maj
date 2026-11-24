@@ -144,7 +144,9 @@ Champs possibles (fields) : ${FIELDS.join(', ')}. Dates en YYYY-MM-DD. Noms en M
 Pour une lettre de RDV : set_rdv + attach_file slot «lettre» (bls) sur le bon client. Pour une photo de passeport d'un client existant : update_client (champs manquants) + attach_file «passeport».
 Si l'activité (bls/tls) n'est pas claire : Espagne/BLS = bls, France/TLS = tls ; si le client n'existe que dans une liste, c'est celle-là ; sinon demande.
 Trouve le client même si le nom est mal écrit ou en arabe. S'il y a plusieurs clients possibles, demande lequel (donne N° et nom) au lieu d'agir.
-Ne propose jamais de supprimer. Ne mets pas de mot de passe ni de code.
+8. {"type":"clear_rdv","app":"...","id":"..."} — enlever un rendez-vous enregistré par erreur (seulement si on le demande).
+Présentation des réponses : jamais le format brut de la liste (pas de «bls |», pas de dates AAAA-MM-JJ). Une ligne par client, triée par date : «• الخميس 26/11 مع 09:15 — N°12 Mohammed FAIZ (تطوان)». «Cette semaine / les prochains jours» = à partir d'aujourd'hui ; ne mélange pas les RDV passés avec ceux à venir (si utile, une ligne «فاتو:» à part).
+Ne propose jamais de supprimer un client ou un fichier. Ne mets pas de mot de passe ni de code.
 
 Liste des clients (app | id | N° | nom | passeport | naissance | mobile | famille | étape | RDV | paiement | …) :
 ${ctx}`;
@@ -187,6 +189,7 @@ function describe(a: any, data: any) {
     case 'add_payment': return `💰 ${who} خلص ${num(a.montant)} DH${c ? ` (كان خالص ${num(c.paye)}${c.prix ? ' من ' + num(c.prix) : ''})` : ''}${a.caisse ? ' + فالكاسة' : ''}`;
     case 'add_task': return `📋 مهمة ${fr(a.day || today())}: ${a.text}${who ? ' — ' + who : ''}`;
     case 'attach_file': return `📎 الوثيقة ← ${who} (${a.slot})`;
+    case 'clear_rdv': return `🗑 نحيد الموعد ديال ${who} (${ap})`;
     case 'caisse': return `💵 كاسة ${a.sens === 'out' ? 'خروج −' : 'دخول +'}${num(a.montant)} DH · ${a.cat}${a.client ? ' · ' + a.client : ''}${a.note ? ' · ' + a.note : ''}`;
     default: return '';
   }
@@ -204,6 +207,7 @@ function valid(actions: any[], data: any, hasFile: boolean) {
     if (a.type === 'attach_file') return hasFile && APPS[a.app].slots.includes(a.slot);
     if (a.type === 'set_rdv') return /^\d{4}-\d{2}-\d{2}$/.test(a.day || '');
     if (a.type === 'add_payment') return num(a.montant) > 0;
+    if (a.type === 'clear_rdv') return true;
     return a.type === 'update_client';
   });
 }
@@ -271,6 +275,15 @@ async function apply(p: any) {
           await putRow(T, a.id, { ...c, etape: 'rdv', rdvDate: a.day, rdvHeure: a.time || '', ...(a.centre && { rdvCentre: a.centre }) }, by);
           done.push(`✅ الموعد تسجل لـ ${nameOf(c)}`);
         }
+      } else if (a.type === 'clear_rdv') {
+        if (a.app === 'bls') {
+          const fam = c.famille ? (await allRows(T)).filter(r => r.data?.famille === c.famille).map(r => r.data) : [c];
+          for (const m of fam) { const x = { ...m }; delete x.reserve; delete x.lettre; await putRow(T, m.id, x, by); }
+        } else {
+          const x = { ...c }; delete x.rdvDate; delete x.rdvHeure; delete x.rdvCentre; if (x.etape === 'rdv') x.etape = 'complet';
+          await putRow(T, a.id, x, by);
+        }
+        done.push(`✅ الموعد ديال ${nameOf(c)} تحيد`);
       } else if (a.type === 'attach_file' && p.file) {
         await saveFile(a.app, a.id, a.slot, p.file);
         done.push(`✅ الوثيقة تحفظات فـ ${nameOf(c)} (${a.slot})`);
