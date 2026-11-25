@@ -106,6 +106,34 @@ async function tgFile(fileId: string) {
   return { bytes: await r.arrayBuffer(), path: f.result.file_path as string };
 }
 
+// ---------- 📋 fiche dossier (same lists as fiche.js in the extensions) ----------
+const DOCS_COMMON: [string, string, number?][] = [['formulaire', 'الاستمارة'], ['photos', '02 صور'], ['recu', 'توصيل الأداء'], ['passeport', 'جواز السفر'],
+  ['cin', 'بطاقة التعريف'], ['visas', 'تأشيرات شنغن السابقة', 1], ['etatcivil', 'عقد الزواج / العزوبة…'], ['livret', 'دفتر الحالة المدنية'],
+  ['releves', 'كشوفات الحساب البنكي'], ['attbanque', 'الشهادة البنكية'], ['propriete', 'ملكية أو عقار', 1], ['assurance', 'تأمين السفر'],
+  ['avion', 'حجز الطائرة'], ['hotel', 'حجز الفندق']];
+const DOCS_PROFIL: Record<string, [string, string, number?][]> = {
+  salarie: [['atttravail', 'شهادة العمل'], ['attsalaire', 'شهادة الأجرة'], ['bulletins', 'كشف الراتب 3 أشهر'], ['cnsscarte', 'بطاقة CNSS'], ['cnssdecl', 'التصريح بالأجور CNSS']],
+  commerce: [['rc', 'السجل التجاري Model 7'], ['patente', 'شهادة الرسم المهني'], ['patenteq', 'الباتنتا'], ['revenu', 'شهادة الدخل'], ['igr', 'التصريح IGR'],
+    ['fiscale', 'الوضعية الجبائية'], ['nonrole', 'عدم التسجيل بالجداول', 1], ['ca', 'رقم المعاملات', 1]],
+  agri: [['attagri', 'شهادة فلاح'], ['terre', 'ملكية / كراء الأرض'], ['patenteagri', 'Patente', 1], ['cartefellah', 'بطاقة الفلاح', 1]],
+  ouvrier: [['atttravailagri', 'شهادة العمل الفلاحي'], ['cnssagri', 'تصريح CNSS', 1], ['bulletinsagri', 'كشوفات الأجرة 3 أشهر']],
+  charge: [['priseencharge', 'شهادة التكفل'], ['ressources', 'إثبات موارد'], ['relevesgarant', 'كشف حساب المتكفل'], ['lien', 'صلة القرابة'], ['naissance', 'شهادة الميلاد مترجمة']],
+  autre: [],
+};
+function ficheLine(c: any) {
+  const f = c.fiche;
+  if (!f?.profil) return '';
+  const list = [...DOCS_COMMON, ...(DOCS_PROFIL[f.profil] || []), ...(f.extra || []).map((x: any) => [x.k, x.ar] as [string, string])];
+  let ok = 0, total = 0; const miss: string[] = [];
+  for (const [k, ar, opt] of list) {
+    const st = f.docs?.[k]?.s;
+    const s = st === 'ok' || st === 'na' ? st : st === 'miss' ? '' : opt ? 'na' : '';
+    if (s === 'na') continue;
+    total++; if (s === 'ok') ok++; else miss.push(`${k}=${ar}`);
+  }
+  return `fiche ${f.profil} ${ok}/${total}${miss.length ? ' manque: ' + miss.join(', ') : ' complète'}`;
+}
+
 // ---------- context for the AI ----------
 function clientLine(app: string, c: any, masked = false) {
   const r = app === 'bls' ? (c.reserve?.day ? `RDV ${c.reserve.day} ${c.reserve.time || ''}${c.reserve.centre ? ' ' + c.reserve.centre : ''}` : '')
@@ -114,7 +142,7 @@ function clientLine(app: string, c: any, masked = false) {
   return [app, c.id, c.num != null && c.num !== '' ? 'N°' + c.num : '', nameOf(c),
     masked ? (c.passeport && 'passeport ✓') : c.passeport, !masked && c.naissance && 'né ' + c.naissance,
     masked ? (c.mobile && 'tél ✓') : c.mobile, c.famille && 'famille ' + c.famille + (c.lien ? ' ' + c.lien : ''), c.etape && 'étape ' + c.etape, r, pay,
-    c.pret && '⭐prêt', c.archive && 'archivé', c.manque && 'manque: ' + c.manque, c.dossier && 'dossier ' + c.dossier]
+    ficheLine(c), c.pret && '⭐prêt', c.archive && 'archivé', c.manque && 'manque: ' + c.manque, c.dossier && 'dossier ' + c.dossier]
     .filter(Boolean).join(' | ');
 }
 
@@ -184,7 +212,7 @@ Date et heure actuelles : ${nowText()} (aujourd'hui = ${today()}).
 
 Réponds UNIQUEMENT en JSON : {"heard": "...", "reply": "...", "actions": [...]}
 - heard : si le message contient un vocal, ce que tu as entendu (transcription courte) ; sinon "".
-- reply : réponse en darija écrite en arabe (comme un collègue), qui dit ce que tu as compris et ce que tu proposes. Pour une question, la réponse COMPLÈTE est dans reply : toutes les lignes (une par client : N°, nom, date, heure, centre…), séparées par \n. Ne mets jamais la liste dans un autre champ et ne termine jamais reply par «:» sans la liste.
+- reply : réponse en DARIJA MAROCAINE écrite en lettres arabes, comme un collègue au bureau (ex : «عندنا 39 كليان»، «باقي ما خلصش»، «خاصو يجيب») — jamais d'arabe classique (pas «الزبناء الجاهزون», «لا توجد»), qui dit ce que tu as compris et ce que tu proposes. Pour une question, la réponse COMPLÈTE est dans reply : toutes les lignes (une par client : N°, nom, date, heure, centre…), séparées par \n. Ne mets jamais la liste dans un autre champ et ne termine jamais reply par «:» sans la liste.
 - actions : les changements à enregistrer (vide si c'est juste une question ou si une info manque : alors demande-la dans reply).
 Types d'actions (n'utilise QUE des ids de la liste des clients ci-dessous ; jamais d'id inventé) :
 1. {"type":"create_client","app":"bls|tls","fields":{...},"attach":"passeport|photo|formulaire|lettre|null"} — nouveau client (ex : photo de passeport). Avant, vérifie qu'il n'existe pas déjà (même passeport ou même nom) : sinon update_client.
@@ -192,6 +220,7 @@ Types d'actions (n'utilise QUE des ids de la liste des clients ci-dessous ; jama
 3. {"type":"set_rdv","app":"...","id":"...","day":"YYYY-MM-DD","time":"HH:MM","centre":"Tétouan","ref":"TTU-123456-26"} — rendez-vous (lettre BLS : la date du RDV est la plage horaire «2026-11-23 08:50-09:10», pas la date de paiement).
 4. {"type":"add_payment","app":"...","id":"...","montant":500,"caisse":false,"mode":"especes|virement|carte|cheque"} — le client a payé (ajouté à «paye»). caisse=true seulement si on demande aussi de l'écrire dans la caisse.
 5. {"type":"add_task","app":"...","text":"...","day":"YYYY-MM-DD","id":"id client ou null"} — tâche «À faire».
+5e. {"type":"set_docs","app":"...","id":"...","profil":"salarie|commerce|agri|ouvrier|charge|autre (seulement si on le dit)","docs":{"clé":"ok|na|miss"}} — 📋 fiche dossier : documents apportés (ok), pas nécessaires (na) ou à apporter (miss). Clés communes : ${DOCS_COMMON.map(d => d[0]).join(', ')} ; par profil : ${Object.entries(DOCS_PROFIL).map(([p, l]) => p + ' → ' + l.map(d => d[0]).join(', ')).join(' ; ')}. Ex : «فلان جاب كشف الحساب والشهادة البنكية» → docs {"releves":"ok","attbanque":"ok"}.
 5c. {"type":"trad_add","fields":{"type":"...","client":"...","tel":"","de":"ar","vers":"fr","pages":1,"traducteur":"","envoi":"YYYY-MM-DD","livraison":"YYYY-MM-DD","etat":"traducteur|bureau|prete|remise","prix":0,"paye":0,"cout":0,"coutPaye":0,"notes":""}} — nouveau document à traduire (registre 📝 Traductions).
 5d. {"type":"trad_update","id":"id du document","fields":{...mêmes champs, ex : etat, remise, paye, coutPaye}} — ex : «la traduction de X est prête / remise / payée».
 5b. {"type":"task_done","app":"...","task":"id de la tâche","done":true} — cocher (ou décocher avec false) une tâche de la liste des tâches.
@@ -205,7 +234,7 @@ Trouve le client même si le nom est mal écrit ou en arabe. S'il y a plusieurs 
 Présentation des réponses : jamais le format brut de la liste (pas de «bls |», pas de dates AAAA-MM-JJ). Une ligne par client, triée par date : «• الخميس 26/11 مع 09:15 — N°12 Mohammed FAIZ (تطوان)». «Cette semaine / les prochains jours» = à partir d'aujourd'hui ; ne mélange pas les RDV passés avec ceux à venir (si utile, une ligne «فاتو:» à part).
 Ne propose jamais de supprimer un client ou un fichier. Ne mets pas de mot de passe ni de code. «passeport ✓» / «tél ✓» = l'info existe mais est cachée ici : si on la demande, dis de la voir dans le dossier (✎) et ne l'invente jamais.
 
-Rapports : pour «rapport / خلاصة / تقرير», donne un résumé clair par partie : BLS 🇪🇸 et TLS 🇫🇷 (nombre de clients, RDV à venir et aujourd'hui/demain, ⭐ prêts, reste à payer total + qui, dossiers où il manque des documents), 📋 tâches (en retard, aujourd'hui, à venir, faites récemment et par qui), 💵 caisse (ce mois : entrées, sorties, solde, par catégorie et par personne ; comparaison avec le mois d'avant), 📝 traductions (en cours, en retard, prêtes à remettre, reste à encaisser des clients, reste dû aux traducteurs, bénéfice du mois). Si on demande une seule partie, réponds seulement sur elle. Titres courts avec emoji, listes à puces, montants en DH.
+Rapports : pour «rapport / خلاصة / تقرير», donne un résumé clair par partie : BLS 🇪🇸 et TLS 🇫🇷 (nombre de clients, RDV à venir et aujourd'hui/demain, ⭐ prêts, reste à payer total + qui, dossiers où il manque des documents d'après la 📋 fiche : qui et quoi), 📋 tâches (en retard, aujourd'hui, à venir, faites récemment et par qui), 💵 caisse (ce mois : entrées, sorties, solde, par catégorie et par personne ; comparaison avec le mois d'avant), 📝 traductions (en cours, en retard, prêtes à remettre, reste à encaisser des clients, reste dû aux traducteurs, bénéfice du mois). Si on demande une seule partie, réponds seulement sur elle. Titres courts avec emoji, listes à puces, montants en DH.
 
 💵 Caisse :
 ${caisse}
@@ -296,6 +325,11 @@ function describe(a: any, data: any) {
       const d = data.trad.find((x: any) => x.id === a.id);
       return `📝 ${d?.num || ''} ${d?.type || ''} — ${d?.client || ''}: ${Object.entries(a.fields || {}).map(([k, v]) => `${k}: ${v}`).join('، ')}`;
     }
+    case 'set_docs': {
+      const lab = (k: string) => [...DOCS_COMMON, ...Object.values(DOCS_PROFIL).flat()].find(d => d[0] === k)?.[1] || k;
+      const ic: any = { ok: '✅', na: '➖', miss: '⬜' };
+      return `📋 ${who}${a.profil ? ` — profil ${a.profil}` : ''}: ${Object.entries(a.docs || {}).map(([k, v]) => `${ic[v as string] || '?'} ${lab(k)}`).join('، ')}`;
+    }
     case 'clear_rdv': return `🗑 نحيد الموعد ديال ${who} (${ap})`;
     case 'caisse': return `💵 كاسة ${a.sens === 'out' ? 'خروج −' : 'دخول +'}${num(a.montant)} DH · ${a.cat}${a.client ? ' · ' + a.client : ''}${a.note ? ' · ' + a.note : ''}`;
     default: return '';
@@ -318,6 +352,7 @@ function valid(actions: any[], data: any, hasFile: boolean) {
     if (a.type === 'set_rdv') return /^\d{4}-\d{2}-\d{2}$/.test(a.day || '');
     if (a.type === 'add_payment') return num(a.montant) > 0;
     if (a.type === 'clear_rdv') return true;
+    if (a.type === 'set_docs') return (a.docs && typeof a.docs === 'object' && Object.keys(a.docs).length > 0) || !!DOCS_PROFIL[a.profil];
     return a.type === 'update_client';
   });
 }
@@ -410,6 +445,14 @@ async function apply(p: any) {
           await putRow(T, a.id, { ...c, etape: 'rdv', rdvDate: a.day, rdvHeure: a.time || '', ...(a.centre && { rdvCentre: a.centre }) }, by);
           done.push(`✅ الموعد تسجل لـ ${nameOf(c)}`);
         }
+      } else if (a.type === 'set_docs') {
+        const f = JSON.parse(JSON.stringify(c.fiche || {}));
+        if (DOCS_PROFIL[a.profil]) f.profil = a.profil;
+        f.docs = f.docs || {};
+        for (const [k, v] of Object.entries(a.docs || {})) if (['ok', 'na', 'miss'].includes(v as string)) f.docs[k] = { s: v, at: Date.now(), by };
+        f.at = Date.now();
+        await putRow(T, a.id, { ...c, fiche: f }, by);
+        done.push(`✅ الفيشة ديال ${nameOf(c)} تبدلات`);
       } else if (a.type === 'clear_rdv') {
         if (a.app === 'bls') {
           const fam = c.famille ? (await allRows(T)).filter(r => r.data?.famille === c.famille).map(r => r.data) : [c];

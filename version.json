@@ -2,13 +2,13 @@
   "updated": "2026-11-20T20:32:42Z",
   "script": "A9B861B2712B014CD502FC56479419E53C0D738197683067E28ABB711B2D46BE",
   "tls": {
-    "version": "1.4.14",
-    "zip": "tls/autofill-tls-1.4.14.zip",
-    "sha256": "40E7C7BED9BE6D62E200DD4E9F53080C869E17A1B988A28DBFF07E0B1638B731"
+    "version": "1.4.15",
+    "zip": "tls/autofill-tls-1.4.15.zip",
+    "sha256": "B244B08C4CE8B3896FD88ABE538AFDF029415B6815F602EB101DD8C747C0A5D0"
   },
   "bls": {
-    "version": "2.8.18",
-    "zip": "bls/agence-autofill-2.8.18.zip",
-    "sha256": "898A71DBF931AED7A20A7BC72E4F81CF1E26A75FE8E5650E3875312D88D5B38B"
+    "version": "2.8.19",
+    "zip": "bls/agence-autofill-2.8.19.zip",
+    "sha256": "3490FD4D65A733A2670E94ACCE7DE8900FD0A35D9278C0003992A96CA53A6816"
   }
 }
