@@ -20,8 +20,8 @@ async function hookToken() {
 }
 
 const APPS: Record<string, { table: string; bucket: string; slots: string[]; label: string }> = {
-  bls: { table: 'clients', bucket: 'fichiers', slots: ['formulaire', 'photo', 'passeport', 'lettre'], label: 'BLS 🇪🇸' },
-  tls: { table: 'clients_tls', bucket: 'fichiers-tls', slots: ['formulaire', 'photo', 'passeport'], label: 'TLS 🇫🇷' },
+  bls: { table: 'clients', bucket: 'fichiers', slots: ['formulaire', 'photo', 'passeport', 'lettre', 'assurance'], label: 'BLS 🇪🇸' },
+  tls: { table: 'clients_tls', bucket: 'fichiers-tls', slots: ['formulaire', 'photo', 'passeport', 'assurance'], label: 'TLS 🇫🇷' },
 };
 const TEAM = '__equipe__';
 const CAISSE_IN = ['rdv-es', 'rdv-fr', 'vfs', 'reservation', 'formulaire', 'traduction', 'divers-in'];
@@ -224,7 +224,7 @@ Types d'actions (n'utilise QUE des ids de la liste des clients ci-dessous ; jama
 5c. {"type":"trad_add","fields":{"type":"...","client":"...","tel":"","de":"ar","vers":"fr","pages":1,"traducteur":"","envoi":"YYYY-MM-DD","livraison":"YYYY-MM-DD","etat":"traducteur|bureau|prete|remise","prix":0,"paye":0,"cout":0,"coutPaye":0,"notes":""}} — nouveau document à traduire (registre 📝 Traductions).
 5d. {"type":"trad_update","id":"id du document","fields":{...mêmes champs, ex : etat, remise, paye, coutPaye}} — ex : «la traduction de X est prête / remise / payée».
 5b. {"type":"task_done","app":"...","task":"id de la tâche","done":true} — cocher (ou décocher avec false) une tâche de la liste des tâches.
-6. {"type":"attach_file","app":"...","id":"...","slot":"passeport|photo|formulaire|lettre"} — ranger le fichier reçu dans le dossier («lettre» seulement pour bls).
+6. {"type":"attach_file","app":"...","id":"...","slot":"passeport|photo|formulaire|lettre|assurance"} — ranger le fichier reçu dans le dossier («lettre» seulement pour bls ; «assurance» = attestation d'assurance voyage).
 7. {"type":"caisse","sens":"in|out","cat":"${[...CAISSE_IN, ...CAISSE_OUT].join('|')}","montant":0,"date":"YYYY-MM-DD","mode":"especes","client":"nom ou vide","note":"..."} — opération de caisse demandée explicitement.
 Champs possibles (fields) : ${FIELDS.join(', ')}. Dates en YYYY-MM-DD. Noms en MAJUSCULES comme sur le passeport (prenom, nom). tls «etape» : nouveau|docs|manque|complet|rdv. pret = true/false (⭐ prêt pour réserver).
 Pour une lettre de RDV : set_rdv + attach_file slot «lettre» (bls) sur le bon client. Pour une photo de passeport d'un client existant : update_client (champs manquants) + attach_file «passeport».
