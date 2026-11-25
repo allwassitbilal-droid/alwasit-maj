@@ -81,6 +81,13 @@ async function listFiles(bucket: string, prefix: string) {
   });
   return r.ok ? (await r.json()).filter((f: any) => f.id).map((f: any) => `${prefix}/${f.name}`) : [];
 }
+async function moveFile(bucket: string, from: string, to: string) {
+  const r = await fetch(`${SB}/storage/v1/object/move`, {
+    method: 'POST', headers: { apikey: SK, Authorization: `Bearer ${SK}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bucketId: bucket, sourceKey: from, destinationKey: to }),
+  });
+  if (!r.ok) throw new Error(`Déplacement ${r.status}: ${(await r.text()).slice(0, 150)}`);
+}
 async function removeFiles(bucket: string, paths: string[]) {
   if (!paths.length) return;
   await fetch(`${SB}/storage/v1/object/${bucket}`, {
@@ -224,6 +231,7 @@ Types d'actions (n'utilise QUE des ids de la liste des clients ci-dessous ; jama
 5c. {"type":"trad_add","fields":{"type":"...","client":"...","tel":"","de":"ar","vers":"fr","pages":1,"traducteur":"","envoi":"YYYY-MM-DD","livraison":"YYYY-MM-DD","etat":"traducteur|bureau|prete|remise","prix":0,"paye":0,"cout":0,"coutPaye":0,"notes":""}} — nouveau document à traduire (registre 📝 Traductions).
 5d. {"type":"trad_update","id":"id du document","fields":{...mêmes champs, ex : etat, remise, paye, coutPaye}} — ex : «la traduction de X est prête / remise / payée».
 5b. {"type":"task_done","app":"...","task":"id de la tâche","done":true} — cocher (ou décocher avec false) une tâche de la liste des tâches.
+6b. {"type":"move_file","app":"...","id":"client","from":"formulaire|photo|passeport|lettre|assurance","to":"…","to_id":"autre client (si on change de client, sinon absent)"} — déplacer une pièce déjà dans les Fichiers du client vers une autre case (ex : «la pièce dans Formulaire, mets-la dans Assurance») ou vers un autre client.
 6. {"type":"attach_file","app":"...","id":"...","slot":"passeport|photo|formulaire|lettre|assurance"} — ranger le fichier reçu dans le dossier («lettre» seulement pour bls ; «assurance» = attestation d'assurance voyage).
 7. {"type":"caisse","sens":"in|out","cat":"${[...CAISSE_IN, ...CAISSE_OUT].join('|')}","montant":0,"date":"YYYY-MM-DD","mode":"especes","client":"nom ou vide","note":"..."} — opération de caisse demandée explicitement.
 Champs possibles (fields) : ${FIELDS.join(', ')}. Dates en YYYY-MM-DD. Noms en MAJUSCULES comme sur le passeport (prenom, nom). tls «etape» : nouveau|docs|manque|complet|rdv. pret = true/false (⭐ prêt pour réserver).
@@ -330,6 +338,10 @@ function describe(a: any, data: any) {
       const ic: any = { ok: '✅', na: '➖', miss: '⬜' };
       return `📋 ${who}${a.profil ? ` — profil ${a.profil}` : ''}: ${Object.entries(a.docs || {}).map(([k, v]) => `${ic[v as string] || '?'} ${lab(k)}`).join('، ')}`;
     }
+    case 'move_file': {
+      const dest = a.to_id ? find(data, a.app, a.to_id) : null;
+      return `📎 نحول الوثيقة ديال ${who}: من ${a.from} إلى ${a.to}${dest ? ` ديال ${nameOf(dest)}` : ''}`;
+    }
     case 'clear_rdv': return `🗑 نحيد الموعد ديال ${who} (${ap})`;
     case 'caisse': return `💵 كاسة ${a.sens === 'out' ? 'خروج −' : 'دخول +'}${num(a.montant)} DH · ${a.cat}${a.client ? ' · ' + a.client : ''}${a.note ? ' · ' + a.note : ''}`;
     default: return '';
@@ -352,6 +364,7 @@ function valid(actions: any[], data: any, hasFile: boolean) {
     if (a.type === 'set_rdv') return /^\d{4}-\d{2}-\d{2}$/.test(a.day || '');
     if (a.type === 'add_payment') return num(a.montant) > 0;
     if (a.type === 'clear_rdv') return true;
+    if (a.type === 'move_file') { const sl = APPS[a.app].slots; return sl.includes(a.from) && sl.includes(a.to) && (a.from !== a.to || (!!a.to_id && a.to_id !== a.id)) && (!a.to_id || !!find(data, a.app, a.to_id)); }
     if (a.type === 'set_docs') return (a.docs && typeof a.docs === 'object' && Object.keys(a.docs).length > 0) || !!DOCS_PROFIL[a.profil];
     return a.type === 'update_client';
   });
@@ -453,6 +466,16 @@ async function apply(p: any) {
         f.at = Date.now();
         await putRow(T, a.id, { ...c, fiche: f }, by);
         done.push(`✅ الفيشة ديال ${nameOf(c)} تبدلات`);
+      } else if (a.type === 'move_file') {
+        const { bucket } = APPS[a.app];
+        const src = await listFiles(bucket, `${a.id}/${a.from}`);
+        if (!src.length) { done.push(`⚠️ ما لقيت حتى وثيقة فـ ${a.from} ديال ${nameOf(c)}`); continue; }
+        const destId = a.to_id || a.id;
+        const old = await listFiles(bucket, `${destId}/${a.to}`);
+        await removeFiles(bucket, old);
+        for (const path of src) await moveFile(bucket, path, `${destId}/${a.to}/${path.split('/').pop()}`);
+        const destName = a.to_id ? nameOf(await getRow(T, a.to_id)) : nameOf(c);
+        done.push(`✅ الوثيقة تحولات من ${a.from} إلى ${a.to}${a.to_id ? ` ديال ${destName}` : ''}${old.length ? ' (اللي كانت تما تمسحات)' : ''}`);
       } else if (a.type === 'clear_rdv') {
         if (a.app === 'bls') {
           const fam = c.famille ? (await allRows(T)).filter(r => r.data?.famille === c.famille).map(r => r.data) : [c];
